@@ -30,6 +30,8 @@ import {
   ToggleGroupItem,
 } from "@/components/ui/toggle-group"
 
+import aquasData from "./../mocks/sensor-data.json"
+
 export const description = "An interactive area chart"
 
 const chartData = [
@@ -167,10 +169,10 @@ export function ChartAreaInteractive() {
   return (
     <Card className="@container/card">
       <CardHeader>
-        <CardTitle>Total Visitors</CardTitle>
+        <CardTitle>pH</CardTitle>
         <CardDescription>
           <span className="hidden @[540px]/card:block">
-            Total for the last 3 months
+            pH readings from the last 3 months
           </span>
           <span className="@[540px]/card:hidden">Last 3 months</span>
         </CardDescription>
@@ -213,7 +215,7 @@ export function ChartAreaInteractive() {
           config={chartConfig}
           className="aspect-auto h-[250px] w-full"
         >
-          <AreaChart data={filteredData}>
+          <AreaChart data={aquasData}>
             <defs>
               <linearGradient id="fillDesktop" x1="0" y1="0" x2="0" y2="1">
                 <stop
@@ -242,17 +244,18 @@ export function ChartAreaInteractive() {
             </defs>
             <CartesianGrid vertical={false} />
             <XAxis
-              dataKey="date"
+              dataKey="timestamp"
               tickLine={false}
               axisLine={false}
               tickMargin={8}
               minTickGap={32}
               tickFormatter={(value) => {
-                const date = new Date(value)
-                return date.toLocaleDateString("en-US", {
-                  month: "short",
-                  day: "numeric",
-                })
+                return value;
+                // const date = new Date(value)
+                // return date.toLocaleDateString("en-US", {
+                //   month: "short",
+                //   day: "numeric",
+                // })
               }}
             />
             <ChartTooltip
@@ -260,29 +263,30 @@ export function ChartAreaInteractive() {
               content={
                 <ChartTooltipContent
                   labelFormatter={(value) => {
-                    return new Date(value).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                    })
+                    return value;
+                    // return new Date(value).toLocaleDateString("en-US", {
+                    //   month: "short",
+                    //   day: "numeric",
+                    // })
                   }}
                   indicator="dot"
                 />
               }
             />
             <Area
-              dataKey="mobile"
+              dataKey="ph"
               type="natural"
               fill="url(#fillMobile)"
               stroke="var(--color-mobile)"
               stackId="a"
             />
-            <Area
-              dataKey="desktop"
+            {/* <Area
+              dataKey=""
               type="natural"
               fill="url(#fillDesktop)"
               stroke="var(--color-desktop)"
               stackId="a"
-            />
+            /> */}
           </AreaChart>
         </ChartContainer>
       </CardContent>
