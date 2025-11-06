@@ -174,9 +174,9 @@ export function ChartAreaInteractive() {
           <span className="hidden @[540px]/card:block">
             pH readings from the last 3 months
           </span>
-          <span className="@[540px]/card:hidden">Last 3 months</span>
         </CardDescription>
         <CardAction>
+          {/* Keeping this for reference
           <ToggleGroup
             type="single"
             value={timeRange}
@@ -187,7 +187,7 @@ export function ChartAreaInteractive() {
             <ToggleGroupItem value="90d">Last 3 months</ToggleGroupItem>
             <ToggleGroupItem value="30d">Last 30 days</ToggleGroupItem>
             <ToggleGroupItem value="7d">Last 7 days</ToggleGroupItem>
-          </ToggleGroup>
+          </ToggleGroup> */}
           <Select value={timeRange} onValueChange={setTimeRange}>
             <SelectTrigger
               className="flex w-40 **:data-[slot=select-value]:block **:data-[slot=select-value]:truncate @[767px]/card:hidden"
