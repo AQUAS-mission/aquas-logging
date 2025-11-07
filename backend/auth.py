@@ -1,11 +1,22 @@
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import jwt
+import os
+from typing import Dict
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/token")
+SECRET = os.getenv("NEXTAUTH_SECRET", "aquas_test_secret")
+ALGORITHM = "HS256"
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
-    # Stub: in a real implementation, validate token with authlib or fastapi-users
-    if not token or token == "":
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication")
-    # Return a simple user dict for now
-    return {"sub": "test-user"}
+security = HTTPBearer()
+
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+) -> Dict:
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET, algorithms=[ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
