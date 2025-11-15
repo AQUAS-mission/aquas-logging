@@ -2,6 +2,7 @@ import os
 import asyncio
 import asyncpg
 from typing import Optional
+from datetime import datetime
 
 _pool: Optional[asyncpg.pool.Pool] = None
 
@@ -33,7 +34,6 @@ async def ensure_tables():
             );
             """
         )
-        # For Timescale hypertable, user can convert telemetry into hypertable manually or here if extension installed.
         await conn.execute(
             """
             CREATE TABLE IF NOT EXISTS detection (
@@ -48,19 +48,33 @@ async def ensure_tables():
 
 async def write_telemetry(device_id: str, metric: str, value: float, ts: Optional[str] = None):
     pool = await init_db_pool()
+    ts_dt = None
+    if ts:
+        try:
+            ts_dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        except:
+            ts_dt = None
+    
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "INSERT INTO telemetry(device_id, metric, value, ts) VALUES($1,$2,$3, COALESCE($4, now())) RETURNING id, ts",
-            device_id, metric, value, ts
+            device_id, metric, value, ts_dt
         )
         return dict(row)
 
 async def write_detection(device_id: str, alert: str, severity: Optional[str] = None, ts: Optional[str] = None):
     pool = await init_db_pool()
+    ts_dt = None
+    if ts:
+        try:
+            ts_dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+        except:
+            ts_dt = None
+    
     async with pool.acquire() as conn:
         row = await conn.fetchrow(
             "INSERT INTO detection(device_id, alert, severity, ts) VALUES($1,$2,$3, COALESCE($4, now())) RETURNING id, ts",
-            device_id, alert, severity, ts
+            device_id, alert, severity, ts_dt
         )
         return dict(row)
 
@@ -72,3 +86,20 @@ async def query_telemetry(device_id: Optional[str] = None, limit: int = 100):
         else:
             rows = await conn.fetch("SELECT * FROM telemetry ORDER BY ts DESC LIMIT $1", limit)
         return [dict(r) for r in rows]
+
+async def query_telemetry_by_metric(metric: str, device_id: Optional[str] = None, limit: int = 500, hours: int = 24):
+    """Query telemetry data by metric type. Returns rows sorted by timestamp ascending (oldest first)."""
+    pool = await init_db_pool()
+    async with pool.acquire() as conn:
+        cutoff_ts = "now() - interval '%d hours'" % hours
+        if device_id:
+            rows = await conn.fetch(
+                f"SELECT id, device_id, metric, value, ts FROM telemetry WHERE metric=$1 AND device_id=$2 AND ts >= {cutoff_ts} ORDER BY ts ASC LIMIT $3",
+                metric, device_id, limit
+            )
+        else:
+            rows = await conn.fetch(
+                f"SELECT id, device_id, metric, value, ts FROM telemetry WHERE metric=$1 AND ts >= {cutoff_ts} ORDER BY ts ASC LIMIT $2",
+                metric, limit
+            )
+        return [{"timestamp": int(r['ts'].timestamp()), "value": r['value'], "device_id": r['device_id']} for r in rows]
