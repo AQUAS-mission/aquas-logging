@@ -9,8 +9,8 @@ _pool: Optional[asyncpg.pool.Pool] = None
 async def init_db_pool():
     global _pool
     if _pool is None:
-        database_url = os.getenv("DATABASE_URL") or "postgresql://postgres:postgres@localhost:5432/aquas"
-        _pool = await asyncpg.create_pool(dsn=database_url, min_size=1, max_size=5)
+        database_url = os.getenv("DATABASE_URL") or "postgresql://postgres:postgres@127.0.0.1:5432/aquas"
+        _pool = await asyncpg.create_pool(dsn=database_url, min_size=1, max_size=5, ssl=False)
     return _pool
 
 async def close_db_pool():

@@ -11,7 +11,7 @@ import json
 import os
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 import httpx
 
 SCRIPT_DIR = Path(__file__).parent
@@ -53,13 +53,20 @@ async def insert_data():
         "Content-Type": "application/json"
     }
     
+    # Calculate time range: spread records over last 30 days
+    now = datetime.utcnow()
+    thirty_days_ago = now - timedelta(days=30)
+    
     async with httpx.AsyncClient(timeout=10.0) as client:
         for i, record in enumerate(sensor_data):
+            # Spread data points evenly over 30 days
+            time_offset = timedelta(minutes=i * (30 * 24 * 60 / len(sensor_data)))
+            record_time = thirty_days_ago + time_offset
+            ts = record_time.isoformat() + "Z"
+            
             for metric in METRICS:
                 if metric not in record:
                     continue
-                
-                ts = datetime.fromtimestamp(record["timestamp"]).isoformat()
                 
                 payload = {
                     "device_id": "sensor-1",
