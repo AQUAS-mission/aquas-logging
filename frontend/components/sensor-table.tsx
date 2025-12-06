@@ -66,6 +66,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Label } from "@/components/ui/label"
@@ -89,8 +90,24 @@ import {
   TabsContent,
 } from "@/components/ui/tabs"
 
+const formatNumber = (value: number | string | undefined) => {
+  const num = typeof value === "string" ? Number(value) : value
+  return Number.isFinite(num) ? Number(num).toFixed(2) : value ?? "-"
+}
+
+const formatTimestamp = (ts: number) => {
+  // ts expected in seconds
+  return new Date(ts * 1000).toLocaleString()
+}
+
+const toIso = (ts: number) => new Date(ts * 1000).toISOString()
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
+
 export const schema = z.object({
   timestamp: z.number(),
+  longitude: z.number(),
+  latitude: z.number(),
   ph: z.number(),
   temperature: z.number(),
   dissolved_oxygen: z.number(),
@@ -99,6 +116,17 @@ export const schema = z.object({
 })
 
 type SensorRow = z.infer<typeof schema>
+
+type BackendRow = {
+  timestamp: number | string
+  longitude?: number | string
+  latitude?: number | string
+  ph?: number | string
+  temperature?: number | string
+  dissolved_oxygen?: number | string
+  electrical_conductivity?: number | string
+  turbidity_ntu?: number | string
+}
 
 type RangeFilterValue = {
   kind: "range"
@@ -115,6 +143,8 @@ type FilterValue = RangeFilterValue | SinceFilterValue
 
 const DATA_COLUMN_IDS = [
   "timestamp",
+  "longitude",
+  "latitude",
   "ph",
   "temperature",
   "dissolved_oxygen",
@@ -138,6 +168,7 @@ type ViewOption = {
 }
 
 const DEFAULT_TIME_WINDOW_HOURS = 24 * 7
+const DEFAULT_LIMIT = 200
 
 const VIEW_OPTIONS: ViewOption[] = [
   {
@@ -150,14 +181,14 @@ const VIEW_OPTIONS: ViewOption[] = [
   {
     id: "water-quality",
     label: "Water quality focus",
-    columns: ["timestamp", "ph", "temperature", "dissolved_oxygen"],
+    columns: ["timestamp", "longitude", "latitude", "ph", "temperature", "dissolved_oxygen"],
     sort: [{ id: "timestamp", desc: true }],
     filters: [{ id: "timestamp", value: { kind: "sinceHours", hours: DEFAULT_TIME_WINDOW_HOURS } }],
   },
   {
     id: "conductivity",
     label: "Conductivity & turbidity",
-    columns: ["timestamp", "electrical_conductivity", "turbidity_ntu"],
+    columns: ["timestamp", "longitude", "latitude", "electrical_conductivity", "turbidity_ntu"],
     sort: [{ id: "timestamp", desc: true }],
     filters: [{ id: "timestamp", value: { kind: "sinceHours", hours: DEFAULT_TIME_WINDOW_HOURS } }],
   },
@@ -287,52 +318,65 @@ const columns: ColumnDef<SensorRow>[] = [
   },
   {
     accessorKey: "timestamp",
-    header: ({ column }) => <SortableHeader column={column} title="Timestamp" />,
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="Timestamp" />,
     cell: ({ row }) => {
+      const ts = row.original.timestamp
       return <TableCellViewer item={row.original} />
     },
     enableHiding: false,
     filterFn: filterByDescriptor,
   },
   {
+    accessorKey: "longitude",
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="Longitude" />,
+    cell: ({ row }) => <div>{formatNumber(row.original.longitude)}</div>,
+    filterFn: filterByDescriptor,
+  },
+  {
+    accessorKey: "latitude",
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="Latitude" />,
+    cell: ({ row }) => <div>{formatNumber(row.original.latitude)}</div>,
+    filterFn: filterByDescriptor,
+  },
+  {
     accessorKey: "ph",
-    header: ({ column }) => <SortableHeader column={column} title="pH" />,
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="pH" />,
     cell: ({ row }) => {
-      return <div>{row.original.ph}</div>
+      return <div>{formatNumber(row.original.ph)}</div>
     },
     filterFn: filterByDescriptor,
   },
   {
     accessorKey: "temperature",
-    header: ({ column }) => <SortableHeader column={column} title="Temperature" />,
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="Temperature" />,
     cell: ({ row }) => {
-      return <div>{row.original.temperature}</div>
+      return <div>{formatNumber(row.original.temperature)}</div>
     },
     filterFn: filterByDescriptor,
   },
   {
     accessorKey: "dissolved_oxygen",
-    header: ({ column }) => <SortableHeader column={column} title="Dissolved Oxygen" />,
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="Dissolved Oxygen" />,
     cell: ({ row }) => {
-      return <div>{row.original.dissolved_oxygen}</div>
+      return <div>{formatNumber(row.original.dissolved_oxygen)}</div>
     },
     filterFn: filterByDescriptor,
   },
   {
     accessorKey: "electrical_conductivity",
-    header: ({ column }) => (
-      <SortableHeader column={column} title="Electrical Conductivity" />
+    header: ({ column, table }) => (
+      <SortableHeader column={column} table={table} title="Electrical Conductivity" />
     ),
     cell: ({ row }) => {
-      return <div>{row.original.electrical_conductivity}</div>
+      return <div>{formatNumber(row.original.electrical_conductivity)}</div>
     },
     filterFn: filterByDescriptor,
   },
   {
     accessorKey: "turbidity_ntu",
-    header: ({ column }) => <SortableHeader column={column} title="Turbidity" />,
+    header: ({ column, table }) => <SortableHeader column={column} table={table} title="Turbidity" />,
     cell: ({ row }) => {
-      return <div>{row.original.turbidity_ntu}</div>
+      return <div>{formatNumber(row.original.turbidity_ntu)}</div>
     },
     filterFn: filterByDescriptor,
   },
@@ -340,9 +384,11 @@ const columns: ColumnDef<SensorRow>[] = [
 
 function SortableHeader({
   column,
+  table,
   title,
 }: {
   column: Column<SensorRow, unknown>
+  table: Table<SensorRow>
   title: string
 }) {
   const sorted = column.getIsSorted()
@@ -356,12 +402,16 @@ function SortableHeader({
     )
 
   const handleClick = React.useCallback(() => {
-    const nextSorting: SortingState =
-      sorted === "desc"
-        ? [{ id: column.id, desc: false }]
-        : [{ id: column.id, desc: true }]
-    column.getTable().setSorting(nextSorting)
-  }, [column, sorted])
+    if (sorted === "asc") {
+      table.setSorting([{ id: column.id, desc: true }])
+      return
+    }
+    if (sorted === "desc") {
+      table.setSorting([])
+      return
+    }
+    table.setSorting([{ id: column.id, desc: false }])
+  }, [column.id, sorted, table])
 
   return (
     <Button
@@ -428,6 +478,13 @@ export function SensorTable({
   const [timeWindow, setTimeWindow] = React.useState<string>(
     String(DEFAULT_TIME_WINDOW_HOURS)
   )
+  const [recordLimit, setRecordLimit] = React.useState<number>(DEFAULT_LIMIT)
+  const [recordLimitInput, setRecordLimitInput] = React.useState<string>(
+    String(DEFAULT_LIMIT)
+  )
+  const dataRef = React.useRef<SensorRow[]>(data)
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
   const sortableId = React.useId()
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -468,6 +525,11 @@ export function SensorTable({
     (value: string) => {
       if (value === CUSTOM_VIEW_ID) {
         setActiveView(CUSTOM_VIEW_ID)
+        setColumnFilters([])
+        setSelectedFilterColumn("")
+        setRangeMin("")
+        setRangeMax("")
+        setTimeWindow(String(DEFAULT_TIME_WINDOW_HOURS))
         return
       }
       const view = VIEW_MAP[value]
@@ -476,7 +538,18 @@ export function SensorTable({
       }
       setActiveView(value)
       setColumnVisibility(buildVisibilityState(value))
-      setColumnFilters(viewFiltersToState(view.filters))
+      const newFilters = viewFiltersToState(view.filters)
+      setColumnFilters(newFilters)
+      // Reset filter UI state when changing views
+      setSelectedFilterColumn("")
+      setRangeMin("")
+      setRangeMax("")
+      const timestampFilter = newFilters.find((f) => f.id === "timestamp")
+      if (timestampFilter && isSinceFilterValue(timestampFilter.value)) {
+        setTimeWindow(String(timestampFilter.value.hours))
+      } else {
+        setTimeWindow(String(DEFAULT_TIME_WINDOW_HOURS))
+      }
       setSorting(view.sort ?? DEFAULT_SORTING)
     },
     []
@@ -583,6 +656,78 @@ export function SensorTable({
     }
   }, [clearColumnFilter, selectedFilterColumn])
 
+  const applyRecordLimit = React.useCallback(() => {
+    const parsed = Number(recordLimitInput)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      setRecordLimit(parsed)
+      setRecordLimitInput(String(parsed))
+      return
+    }
+    setRecordLimit(DEFAULT_LIMIT)
+    setRecordLimitInput(String(DEFAULT_LIMIT))
+  }, [recordLimitInput])
+
+  const downloadData = React.useCallback(
+    (format: "csv" | "json") => {
+      const rows = dataRef.current
+      if (!rows || rows.length === 0) {
+        setError("No data to download")
+        return
+      }
+
+      const exportRows = rows.map((row) => ({
+        timestamp: row.timestamp,
+        timestamp_iso: toIso(row.timestamp),
+        longitude: row.longitude,
+        latitude: row.latitude,
+        ph: row.ph,
+        temperature: row.temperature,
+        dissolved_oxygen: row.dissolved_oxygen,
+        electrical_conductivity: row.electrical_conductivity,
+        turbidity_ntu: row.turbidity_ntu,
+      }))
+
+      let blob: Blob
+      let filename: string
+      if (format === "json") {
+        blob = new Blob([JSON.stringify(exportRows, null, 2)], {
+          type: "application/json",
+        })
+        filename = "sensor-data.json"
+      } else {
+        const headers = Object.keys(exportRows[0])
+        const csvLines = [
+          headers.join(","),
+          ...exportRows.map((row) =>
+            headers
+              .map((key) => {
+                const value = (row as Record<string, unknown>)[key]
+                if (value === null || value === undefined) return ""
+                if (typeof value === "string") {
+                  const escaped = value.replace(/"/g, '""')
+                  return `"${escaped}"`
+                }
+                return String(value)
+              })
+              .join(",")
+          ),
+        ]
+        blob = new Blob([csvLines.join("\n")], { type: "text/csv" })
+        filename = "sensor-data.csv"
+      }
+
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+    },
+    []
+  )
+
   React.useEffect(() => {
     if (selectedFilterColumn === "") {
       setRangeMin("")
@@ -613,6 +758,135 @@ export function SensorTable({
       setRangeMax("")
     }
   }, [columnFilters, selectedFilterColumn])
+
+  const normalizeBackendRow = React.useCallback((row: BackendRow): SensorRow | null => {
+    const toNumber = (value: unknown): number | undefined => {
+      if (typeof value === "number") return value
+      if (typeof value === "string") {
+        const parsed = Number(value)
+        return Number.isFinite(parsed) ? parsed : undefined
+      }
+      return undefined
+    }
+
+    const timestampValue = (() => {
+      if (typeof row.timestamp === "number") return row.timestamp
+      if (typeof row.timestamp === "string") {
+        const parsed = Number(row.timestamp)
+        if (Number.isFinite(parsed)) return parsed
+        const dateParsed = Date.parse(row.timestamp)
+        return Number.isFinite(dateParsed) ? Math.floor(dateParsed / 1000) : undefined
+      }
+      return undefined
+    })()
+
+    const ph = toNumber(row.ph)
+    const longitude = toNumber(row.longitude)
+    const latitude = toNumber(row.latitude)
+    const temperature = toNumber(row.temperature)
+    const dissolved_oxygen = toNumber(row.dissolved_oxygen)
+    const electrical_conductivity = toNumber(row.electrical_conductivity)
+    const turbidity_ntu = toNumber(row.turbidity_ntu)
+
+    if (
+      timestampValue === undefined ||
+      longitude === undefined ||
+      latitude === undefined ||
+      ph === undefined ||
+      temperature === undefined ||
+      dissolved_oxygen === undefined ||
+      electrical_conductivity === undefined ||
+      turbidity_ntu === undefined
+    ) {
+      return null
+    }
+
+    return {
+      timestamp: timestampValue,
+      longitude,
+      latitude,
+      ph,
+      temperature,
+      dissolved_oxygen,
+      electrical_conductivity,
+      turbidity_ntu,
+    }
+  }, [])
+
+  const viewToBackendId: Record<string, string> = React.useMemo(
+    () => ({
+      all: "all",
+      "water-quality": "water-quality",
+      conductivity: "conductivity",
+      "ph-neutral": "ph-neutral",
+      [CUSTOM_VIEW_ID]: "all",
+    }),
+    []
+  )
+
+  React.useEffect(() => {
+    if (activeView === CUSTOM_VIEW_ID) {
+      return
+    }
+
+    const controller = new AbortController()
+    const fetchData = async () => {
+      setLoading(true)
+      setError(null)
+      const backendView = viewToBackendId[activeView] ?? "all"
+
+      const body = {
+        view: backendView,
+        params:
+          backendView === "water-quality"
+            ? {
+                hours: Number(timeWindow) || DEFAULT_TIME_WINDOW_HOURS,
+                limit: Number(recordLimit) || DEFAULT_LIMIT,
+              }
+            : {
+                limit: Number(recordLimit) || DEFAULT_LIMIT,
+              },
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/views/query`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        })
+
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`)
+        }
+
+        const payload = (await response.json()) as { rows?: BackendRow[] }
+        const rows = payload.rows ?? []
+        const normalized = rows
+          .map(normalizeBackendRow)
+          .filter((row): row is SensorRow => row !== null)
+
+        // Replace table data even if empty so we don't fall back to mock data.
+        setData(normalized)
+        dataRef.current = normalized
+      } catch (err) {
+        if (controller.signal.aborted) return
+        setError(err instanceof Error ? err.message : "Failed to fetch data")
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    fetchData()
+
+    return () => {
+      controller.abort()
+    }
+  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit])
 
   const table = useReactTable({
     data,
@@ -704,6 +978,39 @@ export function SensorTable({
                     </DropdownMenuCheckboxItem>
                   )
                 })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="flex items-center gap-2">
+            <Label htmlFor="record-limit" className="text-sm font-medium">
+              Max records
+            </Label>
+            <Input
+              id="record-limit"
+              type="number"
+              inputMode="numeric"
+              min={1}
+              className="w-24"
+              value={recordLimitInput}
+              onChange={(e) => setRecordLimitInput(e.target.value)}
+            />
+            <Button variant="outline" size="sm" onClick={applyRecordLimit}>
+              Set
+            </Button>
+          </div>
+          <div className="hidden h-6 w-px bg-border sm:block" />
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="min-w-[96px]">
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => downloadData("csv")}>
+                CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => downloadData("json")}>
+                JSON
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -804,6 +1111,12 @@ export function SensorTable({
         value="outline"
         className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"
       >
+        {loading ? (
+          <div className="text-sm text-muted-foreground px-2">Loading view data…</div>
+        ) : null}
+        {error ? (
+          <div className="text-sm text-red-600 px-2">Failed to load data: {error}</div>
+        ) : null}
         <div className="overflow-hidden rounded-lg border">
           <DndContext
             collisionDetection={closestCenter}
@@ -965,31 +1278,42 @@ export function SensorTable({
 
 function TableCellViewer({ item }: { item: SensorRow }) {
   const isMobile = useIsMobile()
+  const entries = React.useMemo(
+    () => [
+      ["timestamp", formatTimestamp(item.timestamp)],
+      ["longitude", formatNumber(item.longitude)],
+      ["latitude", formatNumber(item.latitude)],
+      ["ph", formatNumber(item.ph)],
+      ["temperature", formatNumber(item.temperature)],
+      ["dissolved_oxygen", formatNumber(item.dissolved_oxygen)],
+      ["electrical_conductivity", formatNumber(item.electrical_conductivity)],
+      ["turbidity_ntu", formatNumber(item.turbidity_ntu)],
+    ],
+    [item]
+  )
 
   return (
     <Drawer direction={isMobile ? "bottom" : "right"}>
       <DrawerTrigger asChild>
         <Button variant="link" className="text-foreground w-fit px-0 text-left">
-          {item.timestamp}
+          {formatTimestamp(item.timestamp)}
         </Button>
       </DrawerTrigger>
       <DrawerContent>
         <DrawerHeader className="gap-1">
-          <DrawerTitle>{item.timestamp}</DrawerTitle>
+          <DrawerTitle>{formatTimestamp(item.timestamp)}</DrawerTitle>
           <DrawerDescription>
-            Sensor data for timestamp: {item.timestamp}
+            Sensor data for timestamp: {formatTimestamp(item.timestamp)}
           </DrawerDescription>
         </DrawerHeader>
         <div className="flex flex-col gap-4 overflow-y-auto px-4 text-sm">
           <div className="grid grid-cols-2 gap-4">
-            {
-              Object.entries(item).map(([key, value]) =>
-                <div className="flex flex-col gap-3">
-                  <Label htmlFor={key}>{key}</Label>
-                  <div id={key}>{value}</div>
-                </div>
-              )
-            }
+            {entries.map(([key, value]) => (
+              <div key={key} className="flex flex-col gap-3">
+                <Label htmlFor={key}>{key.replace(/_/g, " ")}</Label>
+                <div id={key}>{value}</div>
+              </div>
+            ))}
           </div>
         </div>
       </DrawerContent>

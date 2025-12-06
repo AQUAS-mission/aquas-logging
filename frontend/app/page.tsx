@@ -11,7 +11,6 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar";
 
-import data from "../mocks/sensor-data.json";
 import { SensorTable } from "@/components/sensor-table";
 
 export default function Page() {
@@ -58,7 +57,7 @@ export default function Page() {
               <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
               </div>
-              <SensorTable data={data} />
+              <SensorTable data={[]} />
             </div>
           </div>
         </div>
