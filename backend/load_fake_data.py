@@ -61,42 +61,6 @@ def generate_rows(
     return rows
 
 
-async def ensure_schema(conn: asyncpg.Connection) -> None:
-    """Create the TimescaleDB extension, schema, table, and hypertable if they don't exist."""
-    await conn.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
-    await conn.execute("CREATE SCHEMA IF NOT EXISTS waterq")
-
-    await conn.execute("""
-        CREATE TABLE IF NOT EXISTS waterq.measurements (
-            "time" timestamp with time zone NOT NULL,
-            longitude double precision NOT NULL,
-            latitude double precision NOT NULL,
-            temperature_c double precision,
-            turbidity_ntu double precision,
-            ec_us_cm double precision,
-            tdo_mg_l double precision,
-            ph double precision,
-            CONSTRAINT chk_ec CHECK ((ec_us_cm IS NULL) OR (ec_us_cm >= 0)),
-            CONSTRAINT chk_lat CHECK ((latitude >= -90) AND (latitude <= 90)),
-            CONSTRAINT chk_lon CHECK ((longitude >= -180) AND (longitude <= 180)),
-            CONSTRAINT chk_tdo CHECK ((tdo_mg_l IS NULL) OR (tdo_mg_l >= 0)),
-            CONSTRAINT chk_temp CHECK ((temperature_c IS NULL) OR ((temperature_c >= -5) AND (temperature_c <= 80))),
-            CONSTRAINT chk_turb CHECK ((turbidity_ntu IS NULL) OR (turbidity_ntu >= 0)),
-            CONSTRAINT measurements_ph_check CHECK ((ph >= 0) AND (ph <= 14)),
-            CONSTRAINT measurements_pk PRIMARY KEY (longitude, latitude, "time")
-        )
-    """)
-
-    await conn.execute("""
-        SELECT create_hypertable('waterq.measurements', 'time',
-            chunk_time_interval => INTERVAL '7 days',
-            if_not_exists => TRUE,
-            migrate_data => TRUE
-        )
-    """)
-    print("Schema and hypertable ready.")
-
-
 async def load_fake_data(
     weeks: int,
     interval_minutes: int,
@@ -108,8 +72,6 @@ async def load_fake_data(
     cfg = db_config()
     conn = await asyncpg.connect(**cfg)
     try:
-        await ensure_schema(conn)
-
         if truncate:
             await conn.execute("TRUNCATE TABLE waterq.measurements")
 
