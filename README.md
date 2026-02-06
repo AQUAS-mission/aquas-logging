@@ -13,47 +13,87 @@ Each entry / data point needs a
 
 ## Local PostgreSQL Setup (Testing Only)
 
-### 1) Install PostgreSQL
+### 1) Install TimescaleDB with Docker
 
-**macOS (Homebrew):**
+Docker will automatically pull the image if needed:
 ```bash
-brew install postgresql@15
-brew services start postgresql@15
+docker run -d --name timescaledb \
+  -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres \
+  timescale/timescaledb-ha:pg17-all
 ```
 
-**Ubuntu/Debian:**
+### 2) Enable TimescaleDB Extension
+
+Connect to PostgreSQL:
 ```bash
-sudo apt update && sudo apt install postgresql postgresql-contrib
-sudo systemctl start postgresql
+docker exec -it timescaledb psql -U postgres
 ```
 
-### 2) Create Database and Schema
-
-Connect to PostgreSQL and run:
-```bash
-psql -U postgres
-```
-
-Then execute:
+Enable TimescaleDB:
 ```sql
 CREATE DATABASE aquas;
 \c aquas
-CREATE SCHEMA waterq;
-CREATE TABLE waterq.measurements (
-    time TIMESTAMPTZ NOT NULL,
-    longitude DOUBLE PRECISION,
-    latitude DOUBLE PRECISION,
-    temperature_c DOUBLE PRECISION,
-    turbidity_ntu DOUBLE PRECISION,
-    ec_us_cm DOUBLE PRECISION,
-    tdo_mg_l DOUBLE PRECISION,
-    ph DOUBLE PRECISION
-);
+CREATE EXTENSION IF NOT EXISTS timescaledb;
 \q
 ```
 
-### 3) Load Fake Data (Optional)
+### 3) Apply the Schema
+```sql
+CREATE SCHEMA waterq;
 
+ALTER SCHEMA waterq OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+CREATE TABLE waterq.measurements (
+    "time" timestamp with time zone NOT NULL,
+    longitude double precision NOT NULL,
+    latitude double precision NOT NULL,
+    temperature_c double precision,
+    turbidity_ntu double precision,
+    ec_us_cm double precision,
+    tdo_mg_l double precision,
+    ph double precision,
+    CONSTRAINT chk_ec CHECK (((ec_us_cm IS NULL) OR (ec_us_cm >= (0)::double precision))),
+    CONSTRAINT chk_lat CHECK (((latitude >= ('-90'::integer)::double precision) AND (latitude <= (90)::double precision))),
+    CONSTRAINT chk_lon CHECK (((longitude >= ('-180'::integer)::double precision) AND (longitude <= (180)::double precision))),
+    CONSTRAINT chk_tdo CHECK (((tdo_mg_l IS NULL) OR (tdo_mg_l >= (0)::double precision))),
+    CONSTRAINT chk_temp CHECK (((temperature_c IS NULL) OR ((temperature_c >= ('-5'::integer)::double precision) AND (temperature_c <= (80)::double precision)))),
+    CONSTRAINT chk_turb CHECK (((turbidity_ntu IS NULL) OR (turbidity_ntu >= (0)::double precision))),
+    CONSTRAINT measurements_ph_check CHECK (((ph >= (0)::double precision) AND (ph <= (14)::double precision)))
+);
+
+ALTER TABLE waterq.measurements OWNER TO postgres;
+
+ALTER TABLE ONLY waterq.measurements
+    ADD CONSTRAINT measurements_pk PRIMARY KEY (longitude, latitude, "time");
+
+CREATE INDEX measurements_longitude_latitude_time_idx ON waterq.measurements USING btree (longitude, latitude, "time" DESC);
+
+CREATE INDEX measurements_time_idx ON waterq.measurements USING btree ("time" DESC);
+
+-- Convert to hypertable
+SELECT create_hypertable('waterq.measurements', 'time', 
+    chunk_time_interval => INTERVAL '7 days',
+    if_not_exists => TRUE
+);
+```
+
+### 4) Environment Variables
+
+Create a `.env` file or export these variables:
+```
+POSTGRES_USER=postgres
+POSTGRES_PASSWORD=postgres
+POSTGRES_DB=postgres
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+```
+
+### 5) Load Fake Data (Optional)
 ```bash
 cd backend
 source .venv/bin/activate
@@ -65,19 +105,7 @@ This generates ~4 weeks of synthetic sensor data at 15-minute intervals.
 
 ## Backend API (FastAPI + Postgres)
 
-### 1) Environment Variables
-
-Create a `.env` file in `backend/` or export these variables:
-```
-POSTGRES_USER=postgres
-POSTGRES_PASSWORD=postgres
-POSTGRES_DB=aquas
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-```
-
-### 2) Install and Run
-
+### 1) Install and Run
 ```bash
 cd backend
 python -m venv .venv && source .venv/bin/activate
@@ -86,7 +114,7 @@ export $(cat .env | xargs)
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 3) API Usage
+### 2) API Usage
 
 The frontend sends which view was clicked and any params to the `/views/query` endpoint. Views are whitelisted in `backend/main.py` under `VIEW_QUERIES`; update the SQL there to match your schema.
 
