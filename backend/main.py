@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 DB_CONFIG = {
     "user": os.getenv("POSTGRES_USER", "postgres"),
     "password": os.getenv("POSTGRES_PASSWORD", "postgres"),
-    "database": os.getenv("POSTGRES_DB", "aquas"),
+    "database": os.getenv("POSTGRES_DB", "postgres"),
     "host": os.getenv("POSTGRES_HOST", "localhost"),
     "port": int(os.getenv("POSTGRES_PORT", "5432")),
 }
