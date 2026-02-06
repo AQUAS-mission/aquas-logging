@@ -1,5 +1,4 @@
 "use client";
-
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -12,10 +11,17 @@ import {
 } from "@/components/ui/sidebar";
 
 import { SensorTable } from "@/components/sensor-table";
+import { useEffect } from "react";
 
 export default function Page() {
   const { data: session, status } = useSession();
   const router = useRouter();
+
+  useEffect(() => { 
+    if (!session) {
+      router.push("/login");
+    }
+  }, [session, router]);
 
   if (status === "loading") {
     return (
@@ -23,11 +29,6 @@ export default function Page() {
         <p>Loading...</p>
       </div>
     );
-  }
-
-  if (!session) {
-    router.push("/login");
-    return null;
   }
 
   return (
