@@ -56,7 +56,27 @@ export function ScatterMap() {
         });
         if (!res.ok) throw new Error(`Status ${res.status}`);
         const payload = await res.json();
-        console.log(payload); //temp
+        const rows = (payload.rows ?? [])
+          .map((r: any) => {
+            const toNum = (v: unknown) =>
+              typeof v === "number" ? v : Number(v);
+            const row = {
+              timestamp: toNum(r.timestamp),
+              longitude: toNum(r.longitude),
+              latitude: toNum(r.latitude),
+              ph: toNum(r.ph),
+              temperature: toNum(r.temperature),
+              dissolved_oxygen: toNum(r.dissolved_oxygen),
+              electrical_conductivity: toNum(r.electrical_conductivity),
+              turbidity_ntu: toNum(r.turbidity_ntu),
+            };
+            if (Object.values(row).some((v) => !Number.isFinite(v)))
+              return null;
+            return row as SensorRow;
+          })
+          .filter((r: SensorRow | null): r is SensorRow => r !== null);
+
+        setData(rows);
       } catch (err) {
         if (controller.signal.aborted) return;
         setError(
@@ -70,6 +90,26 @@ export function ScatterMap() {
     fetchData();
     return () => controller.abort();
   }, []);
+  const geojson: GeoJSON.FeatureCollection = React.useMemo(
+    () => ({
+      type: "FeatureCollection",
+      features: data.map((r) => ({
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: [r.longitude, r.latitude],
+        },
+        properties: {
+          ph: r.ph,
+          temperature: r.temperature,
+          dissolved_oxygen: r.dissolved_oxygen,
+          electrical_conductivity: r.electrical_conductivity,
+          turbidity_ntu: r.turbidity_ntu,
+        },
+      })),
+    }),
+    [data],
+  );
   return (
     <div style={{ width: "100%", height: "400px" }}>
       <Map
