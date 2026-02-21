@@ -1,29 +1,37 @@
 import NextAuth from "next-auth";
+import { encode } from "next-auth/jwt";
 import CredentialsProvider from "next-auth/providers/credentials";
+
+const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 const handler = NextAuth({
   providers: [
     CredentialsProvider({
       name: "Credentials",
       credentials: {
-        username: { label: "Username", type: "text" },
+        email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const adminUser = {
-          id: "1",
-          name: "Admin",
-          username: process.env.ADMIN_USERNAME,
-          password: process.env.ADMIN_PASSWORD,
-        };
+        if (!credentials?.email || !credentials?.password) return null;
 
-        if (
-          credentials?.username === adminUser.username &&
-          credentials?.password === adminUser.password
-        ) {
-          return { id: adminUser.id, name: adminUser.name, role: "admin" };
-        }
-        return null;
+        const res = await fetch(`${BACKEND_URL}/auth/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: credentials.email,
+            password: credentials.password,
+          }),
+        });
+
+        if (!res.ok) return null;
+
+        const user = await res.json();
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.display_name ?? user.email,
+        };
       },
     }),
   ],
@@ -37,15 +45,20 @@ const handler = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role;
         token.id = user.id;
+        token.email = user.email;
+        token.name = user.name;
       }
       return token;
     },
     async session({ session, token }) {
-      session.user.role = token.role;
-      session.user.id = token.id;
-      session.user.accessToken = JSON.stringify(token); // for backend auth if needed
+      session.user.id = token.id as string;
+      session.user.email = token.email as string;
+      session.user.name = token.name as string;
+      session.user.accessToken = await encode({
+        token,
+        secret: process.env.NEXTAUTH_SECRET!,
+      });
       return session;
     },
   },

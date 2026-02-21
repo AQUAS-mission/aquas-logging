@@ -109,11 +109,11 @@ SELECT
 
 ### 1.7 Update Fake Data Script
 
-- [ ] Update `load_fake_data.py`:
+- [x] Update `load_fake_data.py`:
   - Create a test user (`test@aquas.dev`, password: `testpassword`)
   - Create 2 test robots linked to that user (with serial numbers)
   - Assign `robot_id` to all generated measurements (split between the 2 robots)
-- [ ] Add `bcrypt` to `requirements.txt` for password hashing in the script
+- [x] Add `bcrypt` to `requirements.txt` for password hashing in the script
 
 ---
 
@@ -123,21 +123,21 @@ SELECT
 
 **Note:** `requirements.txt` currently only has `fastapi`, `uvicorn`, `asyncpg`, `jsonschema`. The following were listed as done in the old task list but are NOT in the file:
 
-- [ ] Add `bcrypt` to `requirements.txt`
-- [ ] Add `PyJWT` to `requirements.txt`
-- [ ] Add `gunicorn` to `requirements.txt`
+- [x] Add `bcrypt` to `requirements.txt`
+- [x] Add `PyJWT` to `requirements.txt`
+- [x] Add `gunicorn` to `requirements.txt`
 
 ### 2.2 Refactor Code Structure
 
 Do this FIRST, before adding new endpoints.
 
-- [ ] Create `backend/db.py` — extract the asyncpg pool setup from `main.py` into a shared module
-- [ ] Create `backend/routes/` folder:
+- [x] Create `backend/db.py` — extract the asyncpg pool setup from `main.py` into a shared module
+- [x] Create `backend/routes/` folder:
   - `routes/view_routes.py` — move existing `/views/query` endpoint here
   - `routes/robot_routes.py` — new robot endpoints (claim, list, data)
   - `routes/auth_routes.py` — new auth endpoints (register, verify)
-- [ ] Update `main.py` to import and mount route files with `APIRouter`
-- [ ] Verify the existing dashboard still works after the refactor
+- [x] Update `main.py` to import and mount route files with `APIRouter`
+- [x] Verify the existing dashboard still works after the refactor
 
 ### 2.3 Update Auth Middleware
 
@@ -260,9 +260,9 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 3.3 Update CredentialsProvider
 
-- [ ] Change `authorize` callback to call backend `POST /auth/verify` with email + password
-- [ ] Remove hardcoded `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars
-- [ ] Return user object from backend response (`id`, `email`, `display_name`)
+- [x] Change `authorize` callback to call backend `POST /auth/verify` with email + password
+- [x] Remove hardcoded `ADMIN_USERNAME` / `ADMIN_PASSWORD` env vars
+- [x] Return user object from backend response (`id`, `email`, `display_name`)
 
 ### 3.4 Create Registration Page
 
