@@ -38,49 +38,19 @@ CREATE EXTENSION IF NOT EXISTS timescaledb;
 \q
 ```
 
-### 3) Apply the Schema
-```sql
-CREATE SCHEMA waterq;
+### 3) Apply Migrations
 
-ALTER SCHEMA waterq OWNER TO postgres;
-
-SET default_tablespace = '';
-
-SET default_table_access_method = heap;
-
-CREATE TABLE waterq.measurements (
-    "time" timestamp with time zone NOT NULL,
-    longitude double precision NOT NULL,
-    latitude double precision NOT NULL,
-    temperature_c double precision,
-    turbidity_ntu double precision,
-    ec_us_cm double precision,
-    tdo_mg_l double precision,
-    ph double precision,
-    CONSTRAINT chk_ec CHECK (((ec_us_cm IS NULL) OR (ec_us_cm >= (0)::double precision))),
-    CONSTRAINT chk_lat CHECK (((latitude >= ('-90'::integer)::double precision) AND (latitude <= (90)::double precision))),
-    CONSTRAINT chk_lon CHECK (((longitude >= ('-180'::integer)::double precision) AND (longitude <= (180)::double precision))),
-    CONSTRAINT chk_tdo CHECK (((tdo_mg_l IS NULL) OR (tdo_mg_l >= (0)::double precision))),
-    CONSTRAINT chk_temp CHECK (((temperature_c IS NULL) OR ((temperature_c >= ('-5'::integer)::double precision) AND (temperature_c <= (80)::double precision)))),
-    CONSTRAINT chk_turb CHECK (((turbidity_ntu IS NULL) OR (turbidity_ntu >= (0)::double precision))),
-    CONSTRAINT measurements_ph_check CHECK (((ph >= (0)::double precision) AND (ph <= (14)::double precision)))
-);
-
-ALTER TABLE waterq.measurements OWNER TO postgres;
-
-ALTER TABLE ONLY waterq.measurements
-    ADD CONSTRAINT measurements_pk PRIMARY KEY (longitude, latitude, "time");
-
-CREATE INDEX measurements_longitude_latitude_time_idx ON waterq.measurements USING btree (longitude, latitude, "time" DESC);
-
-CREATE INDEX measurements_time_idx ON waterq.measurements USING btree ("time" DESC);
-
--- Convert to hypertable
-SELECT create_hypertable('waterq.measurements', 'time', 
-    chunk_time_interval => INTERVAL '7 days',
-    if_not_exists => TRUE
-);
+Run all migration files in order:
+```bash
+docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/000_init_schema.sql
+docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/001_users.sql
+docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/001_robots.sql
+docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/002_measurements_robot_id.sql
+docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/003_continous_aggregations.sql
+docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/004_compression_retention.sql
 ```
+
+Migrations are idempotent — safe to re-run.
 
 ### 4) Environment Variables
 
@@ -88,7 +58,7 @@ Create a `.env` file or export these variables:
 ```
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
-POSTGRES_DB=postgres
+POSTGRES_DB=aquas
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
 ```

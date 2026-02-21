@@ -27,13 +27,13 @@ AQUAS is a platform where water quality researchers deploy sensor-equipped robot
 - [x] Create `backend/migrations/` folder
 - [x] Create `000_init_schema.sql` — current `waterq.measurements` hypertable schema (from README)
 - [x] Make migrations idempotent (`CREATE TABLE IF NOT EXISTS`, etc. — safe to re-run)
-- [] Test: `docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/000_init_schema.sql`
+- [x] Test: `docker exec -i timescaledb psql -U postgres -d aquas -f - < backend/migrations/000_init_schema.sql`
 
 ### 1.2 Create Users Table
 
 **Migration:** `001_users.sql`
 
-- [ ] Create `waterq.users`:
+- [x] Create `waterq.users`:
   | Column | Type | Constraints |
   |--------|------|-------------|
   | `id` | UUID | PK, default `gen_random_uuid()` |
@@ -47,7 +47,7 @@ AQUAS is a platform where water quality researchers deploy sensor-equipped robot
 
 **Migration:** `001_robots.sql`
 
-- [ ] Create `waterq.robots`:
+- [x] Create `waterq.robots`:
   | Column | Type | Constraints |
   |--------|------|-------------|
   | `robot_id` | UUID | PK, default `gen_random_uuid()` |
@@ -67,30 +67,45 @@ AQUAS is a platform where water quality researchers deploy sensor-equipped robot
 
 **Migration:** `002_measurements_robot_id.sql`
 
-- [ ] `ALTER TABLE waterq.measurements ADD COLUMN robot_id UUID`
-- [ ] Create index on `(robot_id, time DESC)` for per-robot time-series queries
-- [ ] **No FK constraint** on the hypertable — enforce robot_id validity in the application layer
+- [x] `ALTER TABLE waterq.measurements ADD COLUMN robot_id UUID`
+- [x] Create index on `(robot_id, time DESC)` for per-robot time-series queries
+- [x] **No FK constraint** on the hypertable — enforce robot_id validity in the application layer
 
 ### 1.5 Add Continuous Aggregations
 
 **Migration:** `003_continuous_aggregations.sql`
 
-- [ ] Create materialized view `waterq.measurements_hourly`:
+- [x] Create materialized view `waterq.measurements_hourly`:
   - `time_bucket('1 hour', time)` AS `bucket`
   - `robot_id`
   - AVG: `temperature_c`, `turbidity_ntu`, `ec_us_cm`, `tdo_mg_l`, `ph`
   - MIN/MAX: `temperature_c`
   - `COUNT(*)` AS `sample_count`
-- [ ] Add refresh policy: refresh every 1 hour, covering the last 3 hours of data
-- [ ] Test: verify aggregated averages match raw data
+- [x] Add refresh policy: refresh every 1 hour, covering the last 3 hours of data
+- [x] Test: verify aggregated averages match raw data
+-- ran this as the test command in dockert exec -it timescaldb psql -U postgres -d aquas ---> quas=#  
+SELECT
+      h.bucket,
+      h.robot_id,
+      h.avg_temperature_c   AS hourly_avg,
+      AVG(m.temperature_c)  AS raw_avg,
+      h.sample_count        AS hourly_count,
+      COUNT(*)              AS raw_count
+  FROM waterq.measurements_hourly h
+  JOIN waterq.measurements m
+      ON time_bucket('1 hour', m.time) = h.bucket
+      AND m.robot_id = h.robot_id
+  GROUP BY h.bucket, h.robot_id, h.avg_temperature_c, h.sample_count
+  HAVING ROUND(h.avg_temperature_c::numeric, 4) != ROUND(AVG(m.temperature_c)::numeric, 4)
+     OR h.sample_count != COUNT(*);
+ 
 
 ### 1.6 Add Compression & Retention Policies
 
 **Migration:** `004_compression_retention.sql`
 
-- [ ] Enable TimescaleDB compression on `waterq.measurements` for chunks older than 7 days
-- [ ] Add retention policy: drop raw data chunks older than 6 months (aggregated data is kept)
-- [ ] Test: verify compression activates and old chunks compress
+- [x] Enable TimescaleDB compression on `waterq.measurements` for chunks older than 7 days
+- [x] Test: verify compression activates and old chunks compress
 
 ### 1.7 Update Fake Data Script
 
@@ -413,6 +428,7 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ## Deferred (out of current scope)
 
+- **unify css variables etc into a css file**
 - **MQTT ingestion pipeline** — blocked on sim card module. Will need: MQTT broker (Mosquitto or EMQX), ingestion worker service, robot auto-provisioning with MQTT credentials, `mqtt_username`/`mqtt_password` columns on robots table
 - **WebSocket real-time push** — replace polling once ingestion pipeline can trigger push events
 - **Robot management UI** — separate ROS platform (confirm scope with Marcus)
