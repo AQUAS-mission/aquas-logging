@@ -1,7 +1,8 @@
 import "./globals.css";
+import type { Metadata } from "next";
 import Providers from "@/components/Providers";
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "AQUAS Dashboard",
   description: "A dashboard to view all AQUAS data.",
 };

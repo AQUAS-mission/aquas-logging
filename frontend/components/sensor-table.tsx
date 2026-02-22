@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSession } from "next-auth/react"
 import {
   closestCenter,
   DndContext,
@@ -457,6 +458,7 @@ export function SensorTable({
 }: {
   data: SensorRow[]
 }) {
+  const { data: session } = useSession()
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() =>
@@ -853,6 +855,7 @@ export function SensorTable({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.user?.accessToken}`,
           },
           body: JSON.stringify(body),
           signal: controller.signal,
@@ -886,7 +889,7 @@ export function SensorTable({
     return () => {
       controller.abort()
     }
-  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit])
+  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session])
 
   const table = useReactTable({
     data,

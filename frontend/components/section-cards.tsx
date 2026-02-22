@@ -2,6 +2,7 @@
 
 import * as React from "react"
 
+import { useSession } from "next-auth/react"
 import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react"
 
 import { Badge } from "@/components/ui/badge"
@@ -60,6 +61,7 @@ const percentChange = (current: number | null | undefined, prev: number | null |
 }
 
 export function SectionCards() {
+  const { data: session } = useSession()
   const [averages, setAverages] = React.useState<Record<
     MetricKey,
     { current: number | null; previous: number | null }
@@ -75,7 +77,10 @@ export function SectionCards() {
       try {
         const response = await fetch(`${API_BASE}/views/query`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.user?.accessToken}`,
+          },
           body: JSON.stringify({ view: "all", params: { limit: 10000 } }),
           signal: controller.signal,
         })
@@ -154,7 +159,7 @@ export function SectionCards() {
 
     fetchData()
     return () => controller.abort()
-  }, [])
+  }, [session])
 
   const renderBadge = (current: number | null, prev: number | null) => {
     const change = percentChange(current, prev)

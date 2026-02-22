@@ -3,9 +3,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 import os
 from typing import Any, Dict
+from dotenv import load_dotenv
 from db import get_pool
 
-SECRET: str = os.getenv("NEXTAUTH_SECRET", "aquas_test_secret")
+load_dotenv()
+SECRET: str = os.environ["NEXTAUTH_SECRET"]
 ALGORITHM: str = "HS256"
 
 security = HTTPBearer()
