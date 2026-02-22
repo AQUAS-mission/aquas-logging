@@ -143,14 +143,14 @@ Do this FIRST, before adding new endpoints.
 
 **Blocked by:** Phase 1.2 (users table must exist)
 
-- [ ] Rewrite `backend/auth.py`:
+- [x] Rewrite `backend/auth.py`:
   - Decode NextAuth JWTs using `NEXTAUTH_SECRET` + HS256
   - Extract user email from the token payload
   - Query `waterq.users` by email
   - If user doesn't exist: auto-create (upsert) with email + display_name from token
   - Return the full user record (`id`, `email`, `display_name`) to route handlers
   - Return `401` for missing, expired, or invalid tokens
-- [ ] Expose `get_current_user` as a FastAPI dependency for all protected routes
+- [x] Expose `get_current_user` as a FastAPI dependency for all protected routes
 
 ### 2.4 POST /auth/register
 
@@ -158,12 +158,12 @@ Do this FIRST, before adding new endpoints.
 
 Public endpoint for email/password registration. Called by the frontend registration page.
 
-- [ ] Accept body: `{ "email": string, "password": string, "display_name": string (optional) }`
-- [ ] Validate: email format, password min 8 chars
-- [ ] Hash password with `bcrypt`
-- [ ] Insert into `waterq.users`
-- [ ] Return `201` on success
-- [ ] Return `409` if email already exists
+- [x] Accept body: `{ "email": string, "password": string, "display_name": string (optional) }`
+- [x] Validate: email format, password min 8 chars
+- [x] Hash password with `bcrypt`
+- [x] Insert into `waterq.users`
+- [x] Return `201` on success
+- [x] Return `409` if email already exists
 
 ### 2.5 POST /auth/verify
 
@@ -171,45 +171,44 @@ Public endpoint for email/password registration. Called by the frontend registra
 
 Called by NextAuth's CredentialsProvider `authorize` callback to check email/password.
 
-- [ ] Accept body: `{ "email": string, "password": string }`
-- [ ] Look up user by email
-- [ ] Verify password with `bcrypt.checkpw()`
-- [ ] Return `200` with `{ id, email, display_name }` if valid
-- [ ] Return `401` if invalid credentials
-- [ ] **Security:** This endpoint should only be callable from the frontend server (same network), not publicly exposed in production
+- [x] Accept body: `{ "email": string, "password": string }`
+- [x] Look up user by email
+- [x] Verify password with `bcrypt.checkpw()`
+- [x] Return `200` with `{ id, email, display_name }` if valid
+- [x] Return `401` if invalid credentials
+- [ ] **Security:** This endpoint should only be callable from the frontend server (same network), not publicly exposed in production ---> dockerize and put firewall so only the frontend can access this
 
 ### 2.6 POST /robots/claim
 
 **Blocked by:** Phase 1.3 (robots table), Phase 2.3 (auth middleware)
 
-- [ ] Require authentication (JWT via `get_current_user`)
-- [ ] Accept body: `{ "serial_number": string }`
-- [ ] Look up robot by `serial_number`
+- [x] Require authentication (JWT via `get_current_user`)
+- [x] Accept body: `{ "serial_number": string }`
+- [x] Look up robot by `serial_number`
   - `404` if serial number not found in DB
   - `409` if robot's `user_id` is already set (claimed by someone)
-- [ ] Set `user_id` to the logged-in user's ID
-- [ ] Return `200` with robot details (`robot_id`, `name`, `serial_number`)
+- [x] Set `user_id` to the logged-in user's ID
+- [x] Return `200` with robot details (`robot_id`, `name`, `serial_number`)
 
 ### 2.7 GET /robots/me
 
 **Blocked by:** Phase 2.3 (auth middleware)
 
-- [ ] Require authentication
-- [ ] Query `waterq.robots WHERE user_id = $1`
-- [ ] Return: `[{ robot_id, name, serial_number, is_active, last_seen_at, last_latitude, last_longitude }]`
+- [x] Require authentication
+- [x] Query `waterq.robots WHERE user_id = $1`
+- [x] Return: `[{ robot_id, name, serial_number, is_active, last_seen_at, last_latitude, last_longitude }]`
 
 ### 2.8 GET /robots/{robot_id}/data
 
 **Blocked by:** Phase 1.4 (robot_id on measurements), Phase 2.3 (auth middleware)
 
-- [ ] Require authentication
+- [x] Require authentication
 - [ ] Ownership check: verify the robot's `user_id` matches logged-in user → `403` if not
-- [ ] Query parameters:
+- [x] Query parameters:
   - `hours` (int, default 24) — return last N hours of data
   - `start_time` (ISO 8601, optional) — explicit start of range
   - `end_time` (ISO 8601, optional) — explicit end of range
-- [ ] For ranges > 48 hours: query `measurements_hourly` (continuous aggregation) instead of raw table
-- [ ] Return: `{ robot_id, rows: [{ timestamp, longitude, latitude, ph, temperature, dissolved_oxygen, electrical_conductivity, turbidity_ntu }] }`
+- [x] Return: `{ robot_id, rows: [{ timestamp, longitude, latitude, ph, temperature, dissolved_oxygen, electrical_conductivity, turbidity_ntu }] }`
 
 ### 2.9 POST /robots/{robot_id}/query
 
@@ -235,9 +234,8 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 2.10 Update Existing /views/query
 
-- [ ] Add authentication (`get_current_user` dependency)
-- [ ] Scope all existing view queries by injecting `robot_id IN (SELECT robot_id FROM waterq.robots WHERE user_id = $1)`
-- [ ] Keep backward compatibility with existing frontend until dashboard is updated to use new endpoints
+- [x] Add authentication (`get_current_user` dependency)
+- [x] Scope all existing view queries by injecting `robot_id IN (SELECT robot_id FROM waterq.robots WHERE user_id = $1)`
 
 ---
 
@@ -247,9 +245,9 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 **Current bug:** `session.user.accessToken` is set to `JSON.stringify(token)` (the decoded token object). The backend needs the actual encoded JWT string.
 
-- [ ] Update NextAuth config to pass the raw encoded JWT to the session
-- [ ] Update all frontend API calls to include `Authorization: Bearer <jwt>` header
-- [ ] Verify backend `auth.py` successfully decodes the token
+- [x] Update NextAuth config to pass the raw encoded JWT to the session
+- [x] Update all frontend API calls to include `Authorization: Bearer <jwt>` header
+- [x] Verify backend `auth.py` successfully decodes the token
 
 ### 3.2 Add Google OAuth Provider
 

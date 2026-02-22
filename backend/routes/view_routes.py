@@ -2,10 +2,11 @@ import logging
 from typing import Any, Dict, List
 
 import asyncpg
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field
 
 from db import get_pool
+from auth import get_current_user
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -21,54 +22,51 @@ BASE_SELECT = """
         ec_us_cm AS electrical_conductivity,
         turbidity_ntu
     FROM waterq.measurements
+    WHERE robot_id IN (SELECT robot_id FROM waterq.robots WHERE user_id = $1)
 """
 
 VIEW_QUERIES: Dict[str, Dict[str, Any]] = {
     "all": {
         "sql": BASE_SELECT + """
             ORDER BY time DESC
-            LIMIT $1
         """,
-        "order": ["limit"],
+        "order": [],
     },
     "water-quality": {
         "sql": BASE_SELECT + """
-            WHERE time >= NOW() AT TIME ZONE 'utc' - make_interval(hours => $1::int)
+            AND time >= NOW() AT TIME ZONE 'utc' - make_interval(hours => $2::int)
             ORDER BY time DESC
-            LIMIT $2
         """,
-        "params": {"hours": 24 * 7,},
+        "params": {"hours": 24 * 7},
         "order": ["hours"],
     },
     "conductivity": {
         "sql": BASE_SELECT + """
-            WHERE ec_us_cm IS NOT NULL
+            AND ec_us_cm IS NOT NULL
             ORDER BY time DESC
-            LIMIT $1
         """,
-        "order": ["limit"],
+        "order": [],
     },
     "ph-neutral": {
         "sql": BASE_SELECT + """
-            WHERE ph BETWEEN $1 AND $2
+            AND ph BETWEEN $2 AND $3
             ORDER BY time DESC
-            LIMIT $3
         """,
-        "params": {"min_ph": 7, "max_ph": 10,},
-        "order": ["min_ph", "max_ph", "limit"],
+        "params": {"min_ph": 7, "max_ph": 10},
+        "order": ["min_ph", "max_ph"],
     },
     "overview": {
         "sql": BASE_SELECT + """
             ORDER BY time DESC
-            LIMIT $1
         """,
-        "order": ["limit"],
+        "order": [],
     },
     "recent_ph": {
         "sql": """
             SELECT EXTRACT(EPOCH FROM time)::bigint AS timestamp, ph
             FROM waterq.measurements
-            WHERE time >= NOW() AT TIME ZONE 'utc' - ($1 || ' days')::interval
+            WHERE robot_id IN (SELECT robot_id FROM waterq.robots WHERE user_id = $1)
+            AND time >= NOW() AT TIME ZONE 'utc' - ($2 || ' days')::interval
             ORDER BY time DESC
         """,
         "params": {"days": 7},
@@ -112,7 +110,8 @@ def build_query_params(view_name: str, request_params: Dict[str, Any]) -> List[A
 
 
 @router.post("/views/query")
-async def run_view_query(payload: ViewRequest) -> Dict[str, Any]:
+async def run_view_query(payload: ViewRequest, current_user: Dict = Depends(get_current_user)) -> Dict[str, Any]:
+    user_id = current_user["id"]
     db_pool = await get_pool()
     view_config = VIEW_QUERIES.get(payload.view)
     if not view_config:
@@ -122,7 +121,7 @@ async def run_view_query(payload: ViewRequest) -> Dict[str, Any]:
     params = build_query_params(payload.view, payload.params)
 
     try:
-        records = await db_pool.fetch(sql, *params)
+        records = await db_pool.fetch(sql, user_id, *params)
     except asyncpg.PostgresError as exc:
         logger.exception("Database error while running view '%s'", payload.view)
         raise HTTPException(status_code=500, detail="Database error") from exc

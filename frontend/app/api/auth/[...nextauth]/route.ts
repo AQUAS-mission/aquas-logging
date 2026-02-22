@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import { encode } from "next-auth/jwt";
+import { SignJWT } from "jose";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
@@ -55,10 +55,16 @@ const handler = NextAuth({
       session.user.id = token.id as string;
       session.user.email = token.email as string;
       session.user.name = token.name as string;
-      session.user.accessToken = await encode({
-        token,
-        secret: process.env.NEXTAUTH_SECRET!,
-      });
+      const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET!);
+      session.user.accessToken = await new SignJWT({
+        id: token.id,
+        email: token.email,
+        name: token.name,
+      })
+        .setProtectedHeader({ alg: "HS256" })
+        .setIssuedAt()
+        .setExpirationTime("24h")
+        .sign(secret);
       return session;
     },
   },

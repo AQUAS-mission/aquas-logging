@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
+import { useSession } from "next-auth/react"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   Card,
@@ -68,6 +69,7 @@ const chartConfig = {
 const formatDate = (ts: number) => new Date(ts * 1000).toLocaleDateString()
 
 export function ChartAreaInteractive() {
+  const { data: session } = useSession()
   const isMobile = useIsMobile()
   const [timeRange, setTimeRange] = React.useState("90")
   const [metric, setMetric] = React.useState<MetricKey>("ph")
@@ -89,7 +91,10 @@ export function ChartAreaInteractive() {
       try {
         const response = await fetch(`${API_BASE}/views/query`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${session?.user?.accessToken}`,
+          },
           body: JSON.stringify({ view: "all", params: { limit: 5000 } }),
           signal: controller.signal,
         })
@@ -138,7 +143,7 @@ export function ChartAreaInteractive() {
     }
     fetchData()
     return () => controller.abort()
-  }, [])
+  }, [session])
 
   const filteredData = React.useMemo(() => {
     const days = Number(timeRange) || 90
