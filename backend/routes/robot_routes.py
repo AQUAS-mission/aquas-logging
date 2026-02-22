@@ -1,8 +1,12 @@
-from fastapi import APIRouter, HTTPException, Depends
-from auth import get_current_user
+import datetime
+import uuid
+from typing import Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+
+from auth import get_current_user
 from db import get_pool
-from typing import Dict
 
 router = APIRouter()
 
@@ -67,6 +71,50 @@ async def get_my_robot(current_user: Dict = Depends(get_current_user)):
     ]
 # GET  /robots/{robot_id}/data  — Phase 2.8
 @router.get("/robots/{robot_id}/data")
-async def get_my_telemetry(current_user: Dict = Depends(get_current_user())):
-    pass
+async def get_robot_telemetry(
+    robot_id: str,
+    hours: int = Query(default=24),
+    start_time: Optional[datetime.datetime] = Query(default=None),
+    end_time: Optional[datetime.datetime] = Query(default=None),
+    current_user: Dict = Depends(get_current_user),
+) -> Dict:
+    pool = await get_pool()
+
+    # ownership check
+    robot = await pool.fetchrow(
+        "SELECT user_id FROM waterq.robots WHERE robot_id = $1",
+        robot_id,
+    )
+    if robot is None:
+        raise HTTPException(status_code=404, detail="Robot not found")
+    if str(robot.get("user_id")) != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    # resolve time range
+    end: datetime.datetime = end_time or datetime.datetime.now(datetime.timezone.utc)
+    start: datetime.datetime = start_time or (end - datetime.timedelta(hours=hours))
+
+    rows = await pool.fetch(
+        """
+        SELECT
+            time AS timestamp,
+            longitude,
+            latitude,
+            ph,
+            temperature_c AS temperature,
+            tdo_mg_l AS dissolved_oxygen,
+            ec_us_cm AS electrical_conductivity,
+            turbidity_ntu
+        FROM waterq.measurements
+        WHERE robot_id = $1 AND time >= $2 AND time <= $3
+        ORDER BY time DESC
+        """,
+        robot_id, start, end,
+    )
+
+    return {
+        "robot_id": robot_id,
+        "rows": [dict(r) for r in rows],
+    }
+# you can implement this later if we decide adding an sql search feature would be good or not
 # POST /robots/{robot_id}/query — Phase 2.9
