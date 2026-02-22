@@ -143,14 +143,14 @@ Do this FIRST, before adding new endpoints.
 
 **Blocked by:** Phase 1.2 (users table must exist)
 
-- [ ] Rewrite `backend/auth.py`:
+- [x] Rewrite `backend/auth.py`:
   - Decode NextAuth JWTs using `NEXTAUTH_SECRET` + HS256
   - Extract user email from the token payload
   - Query `waterq.users` by email
   - If user doesn't exist: auto-create (upsert) with email + display_name from token
   - Return the full user record (`id`, `email`, `display_name`) to route handlers
   - Return `401` for missing, expired, or invalid tokens
-- [ ] Expose `get_current_user` as a FastAPI dependency for all protected routes
+- [x] Expose `get_current_user` as a FastAPI dependency for all protected routes
 
 ### 2.4 POST /auth/register
 
@@ -158,12 +158,12 @@ Do this FIRST, before adding new endpoints.
 
 Public endpoint for email/password registration. Called by the frontend registration page.
 
-- [ ] Accept body: `{ "email": string, "password": string, "display_name": string (optional) }`
-- [ ] Validate: email format, password min 8 chars
-- [ ] Hash password with `bcrypt`
-- [ ] Insert into `waterq.users`
-- [ ] Return `201` on success
-- [ ] Return `409` if email already exists
+- [x] Accept body: `{ "email": string, "password": string, "display_name": string (optional) }`
+- [x] Validate: email format, password min 8 chars
+- [x] Hash password with `bcrypt`
+- [x] Insert into `waterq.users`
+- [x] Return `201` on success
+- [x] Return `409` if email already exists
 
 ### 2.5 POST /auth/verify
 
@@ -171,12 +171,12 @@ Public endpoint for email/password registration. Called by the frontend registra
 
 Called by NextAuth's CredentialsProvider `authorize` callback to check email/password.
 
-- [ ] Accept body: `{ "email": string, "password": string }`
-- [ ] Look up user by email
-- [ ] Verify password with `bcrypt.checkpw()`
-- [ ] Return `200` with `{ id, email, display_name }` if valid
-- [ ] Return `401` if invalid credentials
-- [ ] **Security:** This endpoint should only be callable from the frontend server (same network), not publicly exposed in production
+- [x] Accept body: `{ "email": string, "password": string }`
+- [x] Look up user by email
+- [x] Verify password with `bcrypt.checkpw()`
+- [x] Return `200` with `{ id, email, display_name }` if valid
+- [x] Return `401` if invalid credentials
+- [ ] **Security:** This endpoint should only be callable from the frontend server (same network), not publicly exposed in production ---> dockerize and put firewall so only the frontend can access this
 
 ### 2.6 POST /robots/claim
 
