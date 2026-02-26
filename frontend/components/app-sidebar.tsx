@@ -1,5 +1,8 @@
 "use client"
 
+import Link from "next/link"
+import { IconPlus } from "@tabler/icons-react"
+
 import * as React from "react"
 import {
   IconCamera,
@@ -43,8 +46,13 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "#",
+      url: "/",
       icon: IconDashboard,
+    },
+    {
+      title: "Claim Robot",
+      url: "/robots/claim",
+      icon: IconPlus,
     },
     {
       title: "Lifecycle",
@@ -161,10 +169,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               asChild
               className="data-[slot=sidebar-menu-button]:!p-1.5"
             >
-              <a href="#">
+              <Link href="/">
                 <ShipIcon className="!size-5" />
                 <span className="text-base font-semibold">AQUAS</span>
-              </a>
+              </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
