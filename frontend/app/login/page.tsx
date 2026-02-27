@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import GoogleSignIn from '@/components/GoogleSignIn';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -48,10 +49,11 @@ export default function LoginPage() {
           />
           <button
             type="submit"
-            className="mt-4 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold py-2 rounded-lg transition-all"
+            className="mt-4 bg-primary hover:bg-primary/90 hover:cursor-pointer  text-primary-foreground font-semibold py-2 rounded-lg transition-all"
           >
             Sign In
           </button>
+          <GoogleSignIn />
         </form>
       </div>
     </div>

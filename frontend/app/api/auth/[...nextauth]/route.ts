@@ -1,11 +1,15 @@
 import NextAuth from "next-auth";
 import { SignJWT } from "jose";
 import CredentialsProvider from "next-auth/providers/credentials";
-
+import GoogleProvider from "next-auth/providers/google"
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000";
 
 const handler = NextAuth({
   providers: [
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!, 
+    }),
     CredentialsProvider({
       name: "Credentials",
       credentials: {
@@ -43,8 +47,11 @@ const handler = NextAuth({
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
+    async jwt({ token, user, account }) {
+      if (account) {
+        token.provider = account.provider
+      }
+      else if (user) {
         token.id = user.id;
         token.email = user.email;
         token.name = user.name;
@@ -52,12 +59,13 @@ const handler = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      session.user.id = token.id as string;
+      const id = token.provider === "google" ? token.sub : token.id;
+      session.user.id = id as string;
       session.user.email = token.email as string;
       session.user.name = token.name as string;
       const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET!);
       session.user.accessToken = await new SignJWT({
-        id: token.id,
+        id,
         email: token.email,
         name: token.name,
       })
@@ -67,7 +75,7 @@ const handler = NextAuth({
         .sign(secret);
       return session;
     },
-  },
+    },
 });
 
 export { handler as GET, handler as POST };

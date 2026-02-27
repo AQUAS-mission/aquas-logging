@@ -251,8 +251,8 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 3.2 Add Google OAuth Provider
 
-- [ ] Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `.env`
-- [ ] Update `[...nextauth]/route.ts`:
+- [x] Add `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` to `.env`
+- [x] Update `[...nextauth]/route.ts`:
   - Add `GoogleProvider` alongside `CredentialsProvider`
   - Ensure JWT callback handles both provider types (Google user has email from profile, credentials user has email from form)
 
