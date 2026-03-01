@@ -2,13 +2,15 @@
 
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import GoogleSignIn from '@/components/GoogleSignIn';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const registered = searchParams.get('registered');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +34,11 @@ export default function LoginPage() {
         <h1 className="text-3xl font-bold text-center text-primary mb-6">
           AQUAS Admin Login
         </h1>
+        {registered && (
+          <p className="text-secondary text-sm text-center mb-4">
+            Account created! You can now sign in.
+          </p>
+        )}
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <input
             type="text"
@@ -54,6 +61,12 @@ export default function LoginPage() {
             Sign In
           </button>
           <GoogleSignIn />
+          <p className="text-center text-sm text-muted-foreground">
+            Don&apos;t have an account?{' '}
+            <a href="/register" className="text-primary hover:underline">
+              Register
+            </a>
+          </p>
         </form>
       </div>
     </div>
