@@ -49,9 +49,7 @@ export default function Page() {
               <div className="flex justify-end px-6">
               </div>
               <SectionCards />
-              <div className="px-4 lg:px-6">
-                <ChartAreaInteractive />
-              </div>
+              <ChartAreaInteractive />
               <SensorTable data={[]} />
             </div>
           </div>

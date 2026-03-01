@@ -87,7 +87,7 @@ async def get_robot_telemetry(
     )
     if robot is None:
         raise HTTPException(status_code=404, detail="Robot not found")
-    if str(robot.get("user_id")) != current_user["id"]:
+    if str(robot.get("user_id")) != str(current_user["id"]):
         raise HTTPException(status_code=403, detail="Access denied")
 
     # resolve time range

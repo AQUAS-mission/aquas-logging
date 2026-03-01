@@ -52,6 +52,7 @@ import {
 import { z } from "zod"
 
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useRobotStore } from "@/stores/robot-store"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -459,6 +460,15 @@ export function SensorTable({
   data: SensorRow[]
 }) {
   const { data: session } = useSession()
+  const { selectedRobotId, robots } = useRobotStore()
+  const robotsRef = React.useRef(robots)
+  robotsRef.current = robots
+  const [tableRobotId, setTableRobotId] = React.useState<string>("all")
+
+  // Sync table robot selector when sidebar selection changes
+  React.useEffect(() => {
+    setTableRobotId(selectedRobotId ?? "all")
+  }, [selectedRobotId])
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() =>
@@ -827,51 +837,42 @@ export function SensorTable({
   )
 
   React.useEffect(() => {
-    if (activeView === CUSTOM_VIEW_ID) {
-      return
-    }
-
     const controller = new AbortController()
     const fetchData = async () => {
       setLoading(true)
       setError(null)
       const backendView = viewToBackendId[activeView] ?? "all"
-
-      const body = {
-        view: backendView,
-        params:
-          backendView === "water-quality"
-            ? {
-                hours: Number(timeWindow) || DEFAULT_TIME_WINDOW_HOURS,
-                limit: Number(recordLimit) || DEFAULT_LIMIT,
-              }
-            : {
-                limit: Number(recordLimit) || DEFAULT_LIMIT,
-              },
-      }
+      const hours = backendView === "water-quality"
+        ? (Number(timeWindow) || DEFAULT_TIME_WINDOW_HOURS)
+        : 8760
 
       try {
-        const response = await fetch(`${API_BASE}/views/query`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${session?.user?.accessToken}`,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        })
+        const robotIdList = tableRobotId === "all"
+          ? robotsRef.current.map((r) => r.robot_id)
+          : [tableRobotId]
 
-        if (!response.ok) {
-          throw new Error(`Request failed with status ${response.status}`)
+        if (robotIdList.length === 0) { setLoading(false); return }
+
+        const responses = await Promise.all(
+          robotIdList.map((id) =>
+            fetch(`${API_BASE}/robots/${id}/data?hours=${hours}`, {
+              headers: { "Authorization": `Bearer ${session?.user?.accessToken}` },
+              signal: controller.signal,
+            })
+          )
+        )
+
+        const allRows: BackendRow[] = []
+        for (const response of responses) {
+          if (!response.ok) throw new Error(`Request failed with status ${response.status}`)
+          const payload = (await response.json()) as { robot_id?: string; rows?: BackendRow[] }
+          allRows.push(...(payload.rows ?? []))
         }
 
-        const payload = (await response.json()) as { rows?: BackendRow[] }
-        const rows = payload.rows ?? []
-        const normalized = rows
+        const normalized = allRows
           .map(normalizeBackendRow)
           .filter((row): row is SensorRow => row !== null)
 
-        // Replace table data even if empty so we don't fall back to mock data.
         setData(normalized)
         dataRef.current = normalized
       } catch (err) {
@@ -889,7 +890,7 @@ export function SensorTable({
     return () => {
       controller.abort()
     }
-  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session])
+  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session, tableRobotId])
 
   const table = useReactTable({
     data,
@@ -934,6 +935,22 @@ export function SensorTable({
     >
       <div className="flex flex-col gap-3 px-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
         <div className="flex flex-wrap items-center gap-2">
+          <Label htmlFor="robot-selector" className="sr-only">
+            Robot
+          </Label>
+          <Select value={tableRobotId} onValueChange={setTableRobotId}>
+            <SelectTrigger id="robot-selector" className="w-[12rem]">
+              <SelectValue placeholder="Select robot" />
+            </SelectTrigger>
+            <SelectContent align="start">
+              <SelectItem value="all">All Robots</SelectItem>
+              {robots.map((r) => (
+                <SelectItem key={r.robot_id} value={r.robot_id}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Label htmlFor="view-selector" className="sr-only">
             View
           </Label>
