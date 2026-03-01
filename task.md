@@ -287,25 +287,25 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 **Blocked by:** Phase 2.7 (GET /robots/me), Phase 2.8 (GET /robots/{robot_id}/data)
 
-- [ ] Fetch user's robots from `GET /robots/me` on mount
-- [ ] Add robot selector dropdown (sidebar or header) — default to first robot
-- [ ] "Compare" mode toggle:
+- [x] Fetch user's robots from `GET /robots/me` on mount
+- [x] Add robot selector dropdown (sidebar or header) — default to first robot
+- [x] "Compare" mode toggle:
   - Switches dropdown to multi-select
   - Each robot gets a distinct color across all visualizations
-- [ ] All components (cards, chart, table) refetch when selected robot changes
-- [ ] Switch API calls from `/views/query` to `GET /robots/{robot_id}/data`
+- [x] All components (cards, chart, table) refetch when selected robot changes
+- [x] Switch API calls from `/views/query` to `GET /robots/{robot_id}/data`
 
 ### 4.2 Robot Claim Page
 
 **Blocked by:** Phase 2.6 (POST /robots/claim)
 
-- [ ] Create `/robots/claim` route (or modal accessible from sidebar)
-- [ ] Form: serial number input
-- [ ] On submit: call `POST /robots/claim`
+- [x] Create `/robots/claim` route (or modal accessible from sidebar)
+- [x] Form: serial number input
+- [x] On submit: call `POST /robots/claim`
   - `200` → show robot name, refresh robot list, redirect to dashboard
   - `404` → "Robot not found — check the serial number"
   - `409` → "This robot is already claimed"
-- [ ] Show "Claim a Robot" prompt in sidebar when user has 0 robots
+- [x] Show "Claim a Robot" prompt in sidebar when user has 0 robots
 
 ### 4.3 Form-Based Filter Panel
 

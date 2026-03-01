@@ -1,9 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { IconHelp, IconRobot, IconSearch, IconSettings } from "@tabler/icons-react"
+import { IconRobot } from "@tabler/icons-react"
 import { useSession } from "next-auth/react"
-import { NavSecondary } from "@/components/nav-secondary"
+import { RobotClaim } from "@/components/robotClaim"
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +23,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { data: session } = useSession()
+  const [claimOpen, setClaimOpen] = React.useState(false)
   const {
     robots, setRobots,
     selectedRobotId, setSelectedRobotId,
@@ -93,7 +94,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <p className="px-2 text-xs text-muted-foreground">Loading robots…</p>
             )}
             {!loading && robots.length === 0 && (
-              <p className="px-2 text-xs text-muted-foreground">No robots claimed yet.</p>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setClaimOpen(true)}>
+                  <IconRobot className="size-4" />
+                  <span>Claim a Robot</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             )}
             {robots.map((robot, i) => {
               const color = COMPARE_COLORS[i % COMPARE_COLORS.length]
@@ -129,11 +135,33 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </SidebarMenuItem>
               )
             })}
+            {!loading && robots.length > 0 && (
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setClaimOpen(true)} className="text-muted-foreground">
+                  <span className="text-lg leading-none">+</span>
+                  <span>Claim a Robot</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            )}
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
 
       <SidebarFooter />
+
+      {claimOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setClaimOpen(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-lg border border-border bg-background p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <RobotClaim onClose={() => setClaimOpen(false)} />
+          </div>
+        </div>
+      )}
     </Sidebar>
   )
 }
