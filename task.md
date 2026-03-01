@@ -309,15 +309,15 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 4.3 Form-Based Filter Panel
 
-- [ ] Add collapsible filter panel above the data table
-- [ ] Controls:
+- [x] Add collapsible filter panel above the data table
+- [x] Controls:
   - Date range picker (start date / end date)
   - Metric range sliders: pH (0–14), temperature (-5–80), turbidity (0–100+), EC (0–2000+), TDO (0–20+)
   - Robot selector (when in multi-robot compare mode)
-- [ ] "Apply Filters" sends request to `GET /robots/{robot_id}/data` with `start_time` / `end_time`
-- [ ] Metric sliders filter client-side from the fetched data (or pass to query endpoint)
-- [ ] "Reset" clears all filters
-- [ ] Persist filters in URL query params for shareable links
+- [x] "Apply Filters" sends request to `GET /robots/{robot_id}/data` with `start_time` / `end_time`
+- [x] Metric sliders filter client-side from the fetched data (or pass to query endpoint)
+- [x] "Reset" clears all filters
+- [x] Persist filters in URL query params for shareable links
 
 ### 4.4 SQL Query Editor
 
@@ -332,10 +332,10 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 4.5 Geospatial Map — Scatter
 
-- [ ] Install `react-map-gl` + `maplibre-gl` (no API key needed)
-- [ ] Add map component to dashboard layout (below chart, above table)
+- [x] Install `react-map-gl` + `maplibre-gl` (no API key needed)
+- [x] Add map component to dashboard layout (below chart, above table)
 - [ ] Plot a dot at each measurement's `(longitude, latitude)`
-- [ ] Color dots by the currently selected metric (gradient: green → yellow → red based on value)
+- [x] Color dots by the currently selected metric (gradient: green → yellow → red based on value)
 - [ ] Tooltip on hover: timestamp + all metric values for that reading
 - [ ] Sync with the active time range from the filter panel
 
@@ -357,21 +357,11 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 - [ ] Dropdown to select which metric drives the heatmap
 - [ ] Answers: "where are the worst readings for X metric?"
 
-### 4.8 Geospatial Map — Time Animation
-
-**Blocked by:** Phase 4.5
-
-- [ ] Add time slider below the map
-- [ ] Scrubbing the slider shows only measurements within a time window
-- [ ] Play / pause button to auto-advance through time
-- [ ] Speed control: 1x, 2x, 5x
-- [ ] Dots appear/disappear and change color as time progresses
-
 ### 4.9 Update Section Cards
 
-- [ ] Refactor to use `GET /robots/{robot_id}/data` instead of `/views/query`
-- [ ] In multi-robot compare mode: show per-robot breakdown or combined averages (toggle)
-- [ ] Color-coded status indicators:
+- [x] Refactor to use `GET /robots/{robot_id}/data` instead of `/views/query`
+- [x] In multi-robot compare mode: show per-robot breakdown or combined averages (toggle)
+- [x] Color-coded status indicators:
   - **Green (normal):** pH 6.5–8.5, temp 5–25, turbidity < 10, TDO > 6
   - **Yellow (warning):** values approaching thresholds
   - **Red (critical):** pH < 6 or > 9, temp > 30, turbidity > 50, TDO < 4

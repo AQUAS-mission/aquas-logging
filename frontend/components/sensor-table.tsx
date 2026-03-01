@@ -106,6 +106,25 @@ const toIso = (ts: number) => new Date(ts * 1000).toISOString()
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
+const SLIDER_CONFIG = [
+  { key: "ph",                     label: "pH",                    min: 0,  max: 14,   step: 0.1 },
+  { key: "temperature",            label: "Temperature (°C)",      min: -5, max: 80,   step: 0.5 },
+  { key: "dissolved_oxygen",       label: "Dissolved Oxygen (mg/L)", min: 0, max: 20,  step: 0.1 },
+  { key: "electrical_conductivity",label: "EC (µS/cm)",            min: 0,  max: 2000, step: 1   },
+  { key: "turbidity_ntu",          label: "Turbidity (NTU)",       min: 0,  max: 100,  step: 0.5 },
+] as const
+
+type SliderKey = typeof SLIDER_CONFIG[number]["key"]
+type SliderFilters = Record<SliderKey, [number, number]>
+
+const SLIDER_DEFAULTS: SliderFilters = {
+  ph: [0, 14],
+  temperature: [-5, 80],
+  dissolved_oxygen: [0, 20],
+  electrical_conductivity: [0, 2000],
+  turbidity_ntu: [0, 100],
+}
+
 export const schema = z.object({
   timestamp: z.number(),
   longitude: z.number(),
@@ -178,7 +197,6 @@ const VIEW_OPTIONS: ViewOption[] = [
     label: "All columns",
     columns: [...DATA_COLUMN_IDS],
     sort: [{ id: "timestamp", desc: true }],
-    filters: [{ id: "timestamp", value: { kind: "sinceHours", hours: DEFAULT_TIME_WINDOW_HOURS } }],
   },
   {
     id: "water-quality",
@@ -497,6 +515,13 @@ export function SensorTable({
   const dataRef = React.useRef<SensorRow[]>(data)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [filterOpen, setFilterOpen] = React.useState(false)
+  const [dateFrom, setDateFrom] = React.useState("")
+  const [dateTo, setDateTo] = React.useState("")
+  const [sliderFilters, setSliderFilters] = React.useState<SliderFilters>(SLIDER_DEFAULTS)
+  const [appliedDateFrom, setAppliedDateFrom] = React.useState("")
+  const [appliedDateTo, setAppliedDateTo] = React.useState("")
+  const [appliedSliderFilters, setAppliedSliderFilters] = React.useState<SliderFilters>(SLIDER_DEFAULTS)
   const sortableId = React.useId()
   const sensors = useSensors(
     useSensor(MouseSensor, {}),
@@ -679,6 +704,33 @@ export function SensorTable({
     setRecordLimitInput(String(DEFAULT_LIMIT))
   }, [recordLimitInput])
 
+  const updateSlider = React.useCallback(
+    (key: SliderKey, index: 0 | 1, value: number) => {
+      setSliderFilters((prev) => {
+        const next = [...prev[key]] as [number, number]
+        if (index === 0) next[0] = Math.min(value, prev[key][1])
+        if (index === 1) next[1] = Math.max(value, prev[key][0])
+        return { ...prev, [key]: next }
+      })
+    },
+    []
+  )
+
+  const handleApplyFilters = React.useCallback(() => {
+    setAppliedDateFrom(dateFrom)
+    setAppliedDateTo(dateTo)
+    setAppliedSliderFilters(sliderFilters)
+  }, [dateFrom, dateTo, sliderFilters])
+
+  const handleResetFilters = React.useCallback(() => {
+    setDateFrom("")
+    setDateTo("")
+    setSliderFilters(SLIDER_DEFAULTS)
+    setAppliedDateFrom("")
+    setAppliedDateTo("")
+    setAppliedSliderFilters(SLIDER_DEFAULTS)
+  }, [])
+
   const downloadData = React.useCallback(
     (format: "csv" | "json") => {
       const rows = dataRef.current
@@ -846,6 +898,21 @@ export function SensorTable({
         ? (Number(timeWindow) || DEFAULT_TIME_WINDOW_HOURS)
         : 8760
 
+      // Build query string — prefer explicit date range over hours window
+      let queryString: string
+      if (appliedDateFrom || appliedDateTo) {
+        const params = new URLSearchParams()
+        if (appliedDateFrom) params.set("start_time", new Date(appliedDateFrom).toISOString())
+        if (appliedDateTo) {
+          const end = new Date(appliedDateTo)
+          end.setHours(23, 59, 59, 999)
+          params.set("end_time", end.toISOString())
+        }
+        queryString = params.toString()
+      } else {
+        queryString = `hours=${hours}`
+      }
+
       try {
         const robotIdList = tableRobotId === "all"
           ? robotsRef.current.map((r) => r.robot_id)
@@ -855,7 +922,7 @@ export function SensorTable({
 
         const responses = await Promise.all(
           robotIdList.map((id) =>
-            fetch(`${API_BASE}/robots/${id}/data?hours=${hours}`, {
+            fetch(`${API_BASE}/robots/${id}/data?${queryString}`, {
               headers: { "Authorization": `Bearer ${session?.user?.accessToken}` },
               signal: controller.signal,
             })
@@ -873,8 +940,19 @@ export function SensorTable({
           .map(normalizeBackendRow)
           .filter((row): row is SensorRow => row !== null)
 
-        setData(normalized)
-        dataRef.current = normalized
+        // Apply metric slider filters client-side
+        const filtered = normalized.filter((row) =>
+          SLIDER_CONFIG.every(({ key }) => {
+            const [min, max] = appliedSliderFilters[key]
+            const [defMin, defMax] = SLIDER_DEFAULTS[key]
+            if (min === defMin && max === defMax) return true
+            const val = row[key as keyof SensorRow]
+            return typeof val === "number" && val >= min && val <= max
+          })
+        )
+
+        setData(filtered)
+        dataRef.current = filtered
       } catch (err) {
         if (controller.signal.aborted) return
         setError(err instanceof Error ? err.message : "Failed to fetch data")
@@ -890,7 +968,7 @@ export function SensorTable({
     return () => {
       controller.abort()
     }
-  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session, tableRobotId])
+  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session, tableRobotId, appliedDateFrom, appliedDateTo, appliedSliderFilters])
 
   const table = useReactTable({
     data,
@@ -951,22 +1029,6 @@ export function SensorTable({
               ))}
             </SelectContent>
           </Select>
-          <Label htmlFor="view-selector" className="sr-only">
-            View
-          </Label>
-          <Select value={activeView} onValueChange={handleViewChange}>
-            <SelectTrigger id="view-selector" className="w-[12rem]">
-              <SelectValue placeholder="Select a view" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              {VIEW_OPTIONS.map((view) => (
-                <SelectItem key={view.id} value={view.id}>
-                  {view.label}
-                </SelectItem>
-              ))}
-              <SelectItem value={CUSTOM_VIEW_ID}>Custom view</SelectItem>
-            </SelectContent>
-          </Select>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm">
@@ -1000,23 +1062,15 @@ export function SensorTable({
                 })}
             </DropdownMenuContent>
           </DropdownMenu>
-          <div className="flex items-center gap-2">
-            <Label htmlFor="record-limit" className="text-sm font-medium">
-              Max records
-            </Label>
-            <Input
-              id="record-limit"
-              type="number"
-              inputMode="numeric"
-              min={1}
-              className="w-24"
-              value={recordLimitInput}
-              onChange={(e) => setRecordLimitInput(e.target.value)}
-            />
-            <Button variant="outline" size="sm" onClick={applyRecordLimit}>
-              Set
-            </Button>
-          </div>
+          <div className="hidden h-6 w-px bg-border sm:block" />
+          <Button
+            variant={filterOpen ? "default" : "outline"}
+            size="sm"
+            onClick={() => setFilterOpen((o) => !o)}
+          >
+            Filters
+            <IconChevronDown className={`ml-1 size-3.5 transition-transform ${filterOpen ? "rotate-180" : ""}`} />
+          </Button>
           <div className="hidden h-6 w-px bg-border sm:block" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -1034,99 +1088,82 @@ export function SensorTable({
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-        <div className="flex w-full flex-wrap items-center gap-2 lg:w-auto lg:justify-end">
-          <Label htmlFor="filter-column" className="sr-only">
-            Filter column
-          </Label>
-          <Select
-            value={selectedFilterColumn || "none"}
-            onValueChange={handleFilterColumnChange}
-          >
-            <SelectTrigger id="filter-column" className="w-[11rem]">
-              <SelectValue placeholder="Choose filter" />
-            </SelectTrigger>
-            <SelectContent align="start">
-              <SelectItem value="none">No filter</SelectItem>
-              {DATA_COLUMN_IDS.map((columnId) => (
-                <SelectItem key={columnId} value={columnId}>
-                  {columnId.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          {selectedFilterColumn === "timestamp" ? (
-            <>
-              <Select value={timeWindow} onValueChange={handleTimeWindowChange}>
-                <SelectTrigger className="w-[11rem]">
-                  <SelectValue placeholder="Time window" />
-                </SelectTrigger>
-                <SelectContent align="start">
-                  {TIME_WINDOW_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                  <SelectItem value="0">All time</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearSelectedFilter}
-                disabled={
-                  !columnFilters.some((filter) => filter.id === "timestamp")
-                }
-              >
-                Clear
+      </div>
+      {filterOpen && (
+        <div className="border-t border-border px-4 py-4 lg:px-6">
+          <div className="flex flex-col gap-5">
+            {/* Date range */}
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">From</Label>
+                <Input
+                  type="date"
+                  className="w-40"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs font-medium text-muted-foreground">To</Label>
+                <Input
+                  type="date"
+                  className="w-40"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Metric sliders */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+              {SLIDER_CONFIG.map((cfg) => {
+                const [curMin, curMax] = sliderFilters[cfg.key]
+                return (
+                  <div key={cfg.key} className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-medium">{cfg.label}</Label>
+                      <span className="text-xs text-muted-foreground">
+                        {curMin} – {curMax}
+                      </span>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <input
+                        type="range"
+                        min={cfg.min}
+                        max={cfg.max}
+                        step={cfg.step}
+                        value={curMin}
+                        onChange={(e) => updateSlider(cfg.key, 0, Number(e.target.value))}
+                        className="w-full accent-primary"
+                      />
+                      <input
+                        type="range"
+                        min={cfg.min}
+                        max={cfg.max}
+                        step={cfg.step}
+                        value={curMax}
+                        onChange={(e) => updateSlider(cfg.key, 1, Number(e.target.value))}
+                        className="w-full accent-primary"
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={handleApplyFilters}>
+                Apply Filters
               </Button>
-            </>
-          ) : null}
-          {selectedFilterColumn &&
-          selectedFilterColumn !== "" &&
-          selectedFilterColumn !== "timestamp" ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <Input
-                type="number"
-                inputMode="decimal"
-                placeholder="Min"
-                className="w-24"
-                value={rangeMin}
-                onChange={(event) => setRangeMin(event.target.value)}
-              />
-              <Input
-                type="number"
-                inputMode="decimal"
-                placeholder="Max"
-                className="w-24"
-                value={rangeMax}
-                onChange={(event) => setRangeMax(event.target.value)}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={applyRangeFilter}
-                disabled={
-                  rangeMin.trim() === "" && rangeMax.trim() === ""
-                }
-              >
-                Apply
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearSelectedFilter}
-                disabled={
-                  !columnFilters.some(
-                    (filter) => filter.id === selectedFilterColumn
-                  )
-                }
-              >
-                Clear
+              <Button size="sm" variant="ghost" onClick={handleResetFilters}>
+                Reset
               </Button>
             </div>
-          ) : null}
+          </div>
         </div>
-      </div>
+      )}
+
       <TabsContent
         value="outline"
         className="relative flex flex-col gap-4 overflow-auto px-4 lg:px-6"

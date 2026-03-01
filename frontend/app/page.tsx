@@ -2,7 +2,7 @@
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
-import { ChartAreaInteractive } from "@/components/chart-area-interactive";
+import { SensorVisualizations } from "@/components/visualizations";
 import { SectionCards } from "@/components/section-cards";
 import { SiteHeader } from "@/components/site-header";
 import {
@@ -49,7 +49,7 @@ export default function Page() {
               <div className="flex justify-end px-6">
               </div>
               <SectionCards />
-              <ChartAreaInteractive />
+              <SensorVisualizations />
               <SensorTable data={[]} />
             </div>
           </div>
