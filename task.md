@@ -203,7 +203,7 @@ Called by NextAuth's CredentialsProvider `authorize` callback to check email/pas
 **Blocked by:** Phase 1.4 (robot_id on measurements), Phase 2.3 (auth middleware)
 
 - [x] Require authentication
-- [ ] Ownership check: verify the robot's `user_id` matches logged-in user → `403` if not
+- [x] Ownership check: verify the robot's `user_id` matches logged-in user → `403` if not
 - [x] Query parameters:
   - `hours` (int, default 24) — return last N hours of data
   - `start_time` (ISO 8601, optional) — explicit start of range
