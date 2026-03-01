@@ -264,20 +264,20 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 3.4 Create Registration Page
 
-- [ ] Create `/register` route and page
-- [ ] Form fields: email, password, confirm password, display name (optional)
-- [ ] Client-side validation: email format, password min 8 chars, passwords match
-- [ ] On submit: call backend `POST /auth/register`
+- [x] Create `/register` route and page
+- [x] Form fields: email, password, confirm password, display name (optional)
+- [x] Client-side validation: email format, password min 8 chars, passwords match
+- [x] On submit: call backend `POST /auth/register`
   - Success → redirect to `/login` with success message
   - `409` → show "email already taken" error
-- [ ] Link: "Already have an account? Sign in"
+- [x] Link: "Already have an account? Sign in"
 
 ### 3.5 Update Login Page
 
-- [ ] Change username field to email field
-- [ ] Add "Sign in with Google" button
-- [ ] Add "Don't have an account? Register" link
-- [ ] Style consistently with registration page
+- [x] Change username field to email field
+- [x] Add "Sign in with Google" button
+- [x] Add "Don't have an account? Register" link
+- [x] Style consistently with registration page
 
 ---
 

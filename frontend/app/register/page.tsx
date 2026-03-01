@@ -87,9 +87,9 @@ export default function RegisterPage() {
             required
             className="p-3 rounded-lg bg-input text-foreground placeholder-muted-foreground outline-none focus:ring-2 focus:ring-primary/60"
           />
-          {error && (
-            <p className="text-destructive text-sm text-center">{error}</p>
-          )}
+          <p className={`text-destructive text-sm text-center transition-opacity duration-300 ${error ? 'opacity-100' : 'opacity-0'}`}>
+            {error || ' '}
+          </p>
           <button
             type="submit"
             className="mt-2 bg-primary hover:bg-primary/90 hover:cursor-pointer text-primary-foreground font-semibold py-2 rounded-lg transition-all"
