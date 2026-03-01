@@ -12,7 +12,7 @@ type ClaimState =
   | { status: "success"; robotName: string }
   | { status: "error"; message: string }
 
-export function RobotClaim({ onClose }: { onClose: () => void }) {
+export function RobotClaim({ onClose = () => {} }: { onClose?: () => void }) {
   const { data: session } = useSession()
   const { setRobots } = useRobotStore()
 

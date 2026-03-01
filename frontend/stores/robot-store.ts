@@ -24,10 +24,15 @@ type RobotStore = {
   selectedRobotId: string | null
   compareMode: boolean
   compareRobotIds: string[]
+  autoRefresh: boolean
+  refreshTick: number
+  lastUpdated: number | null
   setRobots: (robots: Robot[]) => void
   setSelectedRobotId: (id: string) => void
   setCompareMode: (on: boolean) => void
   toggleCompareRobot: (id: string) => void
+  setAutoRefresh: (on: boolean) => void
+  tick: () => void
 }
 
 export const useRobotStore = create<RobotStore>((set) => ({
@@ -35,6 +40,9 @@ export const useRobotStore = create<RobotStore>((set) => ({
   selectedRobotId: null,
   compareMode: false,
   compareRobotIds: [],
+  autoRefresh: true,
+  refreshTick: 0,
+  lastUpdated: null,
   setRobots: (robots) => set({ robots, selectedRobotId: robots[0]?.robot_id ?? null }),
   setSelectedRobotId: (id) => set({ selectedRobotId: id }),
   setCompareMode: (on) => set({ compareMode: on, compareRobotIds: [] }),
@@ -44,4 +52,6 @@ export const useRobotStore = create<RobotStore>((set) => ({
         ? state.compareRobotIds.filter((r) => r !== id)
         : [...state.compareRobotIds, id],
     })),
+  setAutoRefresh: (on) => set({ autoRefresh: on }),
+  tick: () => set((state) => ({ refreshTick: state.refreshTick + 1, lastUpdated: Date.now() })),
 }))

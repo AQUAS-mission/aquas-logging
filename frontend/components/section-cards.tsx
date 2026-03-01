@@ -103,7 +103,7 @@ const computeAverages = (rows: any[]) => {
 
 export function SectionCards() {
   const { data: session } = useSession()
-  const { compareMode, compareRobotIds, robots } = useRobotStore()
+  const { compareMode, compareRobotIds, robots, refreshTick } = useRobotStore()
   const [averages, setAverages] = React.useState<Record<
     MetricKey,
     { current: number | null; previous: number | null }
@@ -150,7 +150,7 @@ export function SectionCards() {
 
     fetchData()
     return () => controller.abort()
-  }, [compareMode, compareRobotIds.join(","), robots.map((r) => r.robot_id).join(","), session?.user?.accessToken])
+  }, [compareMode, compareRobotIds.join(","), robots.map((r) => r.robot_id).join(","), session?.user?.accessToken, refreshTick])
 
   const renderBadge = (current: number | null, prev: number | null) => {
     const change = percentChange(current, prev)

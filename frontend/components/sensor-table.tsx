@@ -46,6 +46,7 @@ import {
   type OnChangeFn,
   Row,
   SortingState,
+  type Table as TanstackTable,
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
@@ -92,9 +93,9 @@ import {
   TabsContent,
 } from "@/components/ui/tabs"
 
-const formatNumber = (value: number | string | undefined) => {
+const formatNumber = (value: number | string | undefined): string => {
   const num = typeof value === "string" ? Number(value) : value
-  return Number.isFinite(num) ? Number(num).toFixed(2) : value ?? "-"
+  return Number.isFinite(num) ? Number(num).toFixed(2) : String(value ?? "-")
 }
 
 const formatTimestamp = (ts: number) => {
@@ -408,7 +409,7 @@ function SortableHeader({
   title,
 }: {
   column: Column<SensorRow, unknown>
-  table: Table<SensorRow>
+  table: TanstackTable<SensorRow>
   title: string
 }) {
   const sorted = column.getIsSorted()
@@ -478,7 +479,7 @@ export function SensorTable({
   data: SensorRow[]
 }) {
   const { data: session } = useSession()
-  const { selectedRobotId, robots } = useRobotStore()
+  const { selectedRobotId, robots, refreshTick } = useRobotStore()
   const robotsRef = React.useRef(robots)
   robotsRef.current = robots
   const [tableRobotId, setTableRobotId] = React.useState<string>("all")
@@ -968,7 +969,7 @@ export function SensorTable({
     return () => {
       controller.abort()
     }
-  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session, tableRobotId, appliedDateFrom, appliedDateTo, appliedSliderFilters])
+  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, session, tableRobotId, appliedDateFrom, appliedDateTo, appliedSliderFilters, refreshTick])
 
   const table = useReactTable({
     data,
@@ -1371,6 +1372,7 @@ function TableCellViewer({ item }: { item: SensorRow }) {
                 <div id={key}>{value}</div>
               </div>
             ))}
+            
           </div>
         </div>
       </DrawerContent>

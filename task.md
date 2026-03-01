@@ -334,28 +334,28 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 - [x] Install `react-map-gl` + `maplibre-gl` (no API key needed)
 - [x] Add map component to dashboard layout (below chart, above table)
-- [ ] Plot a dot at each measurement's `(longitude, latitude)`
+- [x] Plot a dot at each measurement's `(longitude, latitude)`
 - [x] Color dots by the currently selected metric (gradient: green → yellow → red based on value)
-- [ ] Tooltip on hover: timestamp + all metric values for that reading
-- [ ] Sync with the active time range from the filter panel
+- [x] Tooltip on hover: timestamp + all metric values for that reading
+
 
 ### 4.6 Geospatial Map — Path/Track
 
 **Blocked by:** Phase 4.5 (map component exists)
 
-- [ ] Draw a line connecting measurement points in chronological order
-- [ ] Line color: gradient from faded to solid (old → recent)
-- [ ] Single-robot view: one path
-- [ ] Multi-robot compare mode: each robot gets a distinct colored path
+- [x] Draw a line connecting measurement points in chronological order
+- [x] Line color: gradient from faded to solid (old → recent)
+- [x] Single-robot view: one path
+- [x] Multi-robot compare mode: each robot gets a distinct colored path
 
 ### 4.7 Geospatial Map — Heatmap Layer
 
 **Blocked by:** Phase 4.5
 
-- [ ] Add heatmap toggle button on the map
-- [ ] Intensity driven by the currently selected metric (e.g., turbidity hotspots)
-- [ ] Dropdown to select which metric drives the heatmap
-- [ ] Answers: "where are the worst readings for X metric?"
+- [x] Add heatmap toggle button on the map
+- [x] Intensity driven by the currently selected metric (e.g., turbidity hotspots)
+- [x] Dropdown to select which metric drives the heatmap
+- [x] Answers: "where are the worst readings for X metric?"
 
 ### 4.9 Update Section Cards
 
@@ -369,10 +369,10 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ### 4.10 Polling Refresh
 
-- [ ] Add auto-refresh toggle in the header (on by default)
-- [ ] Poll active endpoint every 30 seconds
-- [ ] Show "Last updated: X seconds ago" indicator
-- [ ] Subtle loading indicator during refresh (don't flash the whole page)
+- [x] Add auto-refresh toggle in the header (on by default)
+- [x] Poll active endpoint every 30 seconds
+- [x] Show "Last updated: X seconds ago" indicator
+- [x] Subtle loading indicator during refresh (don't flash the whole page)
 - [ ] **Future:** Replace polling with WebSocket push layer
 
 ---

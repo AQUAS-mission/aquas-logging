@@ -140,6 +140,32 @@
   }
 }
 
+/* ─── Maplibre popup — match site card/popover styling ──────────────────── */
+.aquas-popup .maplibregl-popup-content {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) - 4px);
+  padding: 10px 14px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  font-size: 12px;
+  line-height: 1.6;
+  min-width: 168px;
+}
+
+.aquas-popup.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--border);
+}
+.aquas-popup.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--border);
+}
+.aquas-popup.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--border);
+}
+.aquas-popup.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--border);
+}
+
 /* Hide number input spinners for cleaner custom filters */
 input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {

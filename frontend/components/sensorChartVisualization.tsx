@@ -1,5 +1,6 @@
 "use client"
 
+import * as React from "react"
 import {
   Area, AreaChart,
   Bar, BarChart,
@@ -7,9 +8,24 @@ import {
   CartesianGrid, XAxis, YAxis,
 } from "recharts"
 import { ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { COMPARE_COLORS, Robot } from "@/stores/robot-store"
-import Map from 'react-map-gl/maplibre'
-import 'maplibre-gl/dist/maplibre-gl.css'
+import { COMPARE_COLORS, type Robot } from "@/stores/robot-store"
+import dynamic from "next/dynamic"
+
+const ScatterMapViz = dynamic(
+  () => import("@/components/scatterMapViz").then((m) => m.ScatterMapViz),
+  { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">Loading map…</div> }
+)
+
+const PathMapViz = dynamic(
+  () => import("@/components/pathMapViz").then((m) => m.PathMapViz),
+  { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">Loading map…</div> }
+)
+
+const HeatmapViz = dynamic(
+  () => import("@/components/heatmapViz").then((m) => m.HeatmapViz),
+  { ssr: false, loading: () => <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">Loading map…</div> }
+)
+
 const chartConfig = { metric: { label: "Metric" } } satisfies ChartConfig
 
 export type DataPoint = { date: string; value: number; timestamp: number }
@@ -21,25 +37,28 @@ export type VizProps = {
   mergedCompareData: ComparePoint[]
   compareRobotIds: string[]
   robots: Robot[]
+  selectedRobotId?: string
+  hours?: number
 }
 
 // ─── Registry — add new chart types here ─────────────────────────────────────
 
 export const VISUALIZATION_TYPES = [
-  { id: "area",  label: "Sensor Data Area Chart"  },
-  { id: "line",  label: "Sensor Data Line Chart"  },
-  { id: "bar",   label: "Sensor Data Bar Chart"   },
-  { id: "scatter", label: "Geospatial Map - Scatter" },
-  { id: "path", label: "Geospatial Map - Path" }, 
-  { id: "heatmap", label: "Geospatial Map - Heatmap" }, 
-
+  { id: "area",     label: "Sensor Data Area Chart"     },
+  { id: "line",     label: "Sensor Data Line Chart"     },
+  { id: "bar",      label: "Sensor Data Bar Chart"      },
+  { id: "scatter",  label: "Geospatial Map - Scatter"   },
+  { id: "path",     label: "Geospatial Map - Path"      },
+  { id: "heatmap",  label: "Geospatial Map - Heatmap"   },
 ] as const
 
 export type VizTypeId = typeof VISUALIZATION_TYPES[number]["id"]
 
+const MAP_TYPES = new Set<VizTypeId>(["scatter", "path", "heatmap"])
+
 // Each function returns a recharts chart element directly so that
 // ResponsiveContainer (inside ChartContainer) can clone it with width/height.
-const VIZ_MAP: Record<VizTypeId, (props: VizProps) => React.ReactElement> = {
+const VIZ_MAP: Partial<Record<VizTypeId, (props: VizProps) => React.ReactElement>> = {
   area: ({ compareMode, data, mergedCompareData, compareRobotIds, robots }) => (
     <AreaChart data={compareMode ? mergedCompareData : data} margin={{ left: 12, right: 12, top: 10, bottom: 10 }}>
       <CartesianGrid vertical={false} />
@@ -97,51 +116,22 @@ const VIZ_MAP: Record<VizTypeId, (props: VizProps) => React.ReactElement> = {
       }
     </BarChart>
   ),
-  scatter: ({ }) => ( 
-    
-      <Map
-        initialViewState={{
-          longitude: -122.4,
-          latitude: 37.8,
-          zoom: 14
-        }}
-        style={{width: "100%", height: "100%"}}
-        mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-      />
-
-  ), 
-  path: ({ }) => ( 
-    
-      <Map
-        initialViewState={{
-          longitude: -122.4,
-          latitude: 37.8,
-          zoom: 14
-        }}
-        style={{width: "100%", height: "100%"}}
-        mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-      />
-
-  ), 
-  heatmap: ({ }) => ( 
-    
-      <Map
-        initialViewState={{
-          longitude: -122.4,
-          latitude: 37.8,
-          zoom: 14
-        }}
-        style={{width: "100%", height: "100%"}}
-        mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
-      />
-
-  ), 
 }
 
 // ─── Main switch component ────────────────────────────────────────────────────
 
 export function SensorChartVisualization({ vizType, ...props }: VizProps & { vizType: VizTypeId }) {
-  const render = VIZ_MAP[vizType] ?? VIZ_MAP.area
+  // Map-based visualizations render outside ChartContainer/ResponsiveContainer
+  if (MAP_TYPES.has(vizType)) {
+    const MapComponent = vizType === "path" ? PathMapViz : vizType === "heatmap" ? HeatmapViz : ScatterMapViz
+    return (
+      <div className="h-[650px] w-full overflow-hidden rounded-xl">
+        <MapComponent {...props} />
+      </div>
+    )
+  }
+
+  const render = VIZ_MAP[vizType] ?? VIZ_MAP.area!
   return (
     <ChartContainer config={chartConfig} className="h-[650px] w-full overflow-hidden rounded-xl">
       {render(props)}

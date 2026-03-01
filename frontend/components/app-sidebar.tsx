@@ -29,6 +29,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     selectedRobotId, setSelectedRobotId,
     compareMode, setCompareMode,
     compareRobotIds, toggleCompareRobot,
+    refreshTick,
   } = useRobotStore()
   const [loading, setLoading] = React.useState(false)
 
@@ -55,7 +56,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
     fetchRobots()
     return () => controller.abort()
-  }, [session?.user?.accessToken])
+  }, [session?.user?.accessToken, refreshTick])
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>

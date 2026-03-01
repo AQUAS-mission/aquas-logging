@@ -23,6 +23,8 @@ import {
   type VizTypeId,
 } from "@/components/sensorChartVisualization"
 
+const MAP_VIZ_TYPES = new Set<VizTypeId>(["scatter", "path", "heatmap"])
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
 type MetricKey = "ph" | "temperature" | "dissolved_oxygen" | "electrical_conductivity" | "turbidity_ntu"
@@ -36,10 +38,11 @@ const METRICS: { key: MetricKey; label: string }[] = [
 ]
 
 const RANGE_OPTIONS = [
-  { value: "30", label: "1 month" },
-  { value: "90", label: "3 months" },
+  { value: "7",   label: "1 week"   },
+  { value: "30",  label: "1 month"  },
+  { value: "90",  label: "3 months" },
   { value: "180", label: "6 months" },
-  { value: "365", label: "1 year" },
+  { value: "365", label: "1 year"   },
 ]
 
 const formatDate = (ts: number) => new Date(ts * 1000).toLocaleDateString()
@@ -58,7 +61,7 @@ const normalizeRows = (rows: any[], metric: MetricKey) =>
 export function SensorVisualizations() {
   const { data: session } = useSession()
   const isMobile = useIsMobile()
-  const { selectedRobotId, compareMode, compareRobotIds, robots } = useRobotStore()
+  const { selectedRobotId, compareMode, compareRobotIds, robots, refreshTick } = useRobotStore()
 
   const [vizType, setVizType] = React.useState<VizTypeId>("area")
   const [timeRange, setTimeRange] = React.useState("90")
@@ -101,7 +104,7 @@ export function SensorVisualizations() {
     }
     fetchData()
     return () => controller.abort()
-  }, [selectedRobotId, compareMode, session?.user?.accessToken, hours, metric])
+  }, [selectedRobotId, compareMode, session?.user?.accessToken, hours, metric, refreshTick])
 
   // Compare mode fetch
   React.useEffect(() => {
@@ -137,7 +140,7 @@ export function SensorVisualizations() {
     }
     fetchCompare()
     return () => controller.abort()
-  }, [compareMode, compareRobotIds.join(","), session?.user?.accessToken, hours, metric])
+  }, [compareMode, compareRobotIds.join(","), session?.user?.accessToken, hours, metric, refreshTick])
 
   const mergedCompareData = React.useMemo(() => {
     if (!compareMode) return []
@@ -160,7 +163,7 @@ export function SensorVisualizations() {
       <CardHeader>
         {/* Visualization type selector replaces the static title */}
         <Select value={vizType} onValueChange={(val) => setVizType(val as VizTypeId)}>
-          <SelectTrigger className="w-44 text-lg font-semibold border-none shadow-none px-0 focus:ring-0" size="sm">
+          <SelectTrigger className="w-64 text-lg font-semibold border-none shadow-none px-0 focus:ring-0" size="sm">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
@@ -172,16 +175,18 @@ export function SensorVisualizations() {
 
         <CardAction>
           <div className="flex flex-wrap gap-2">
-            <Select value={metric} onValueChange={(val) => setMetric(val as MetricKey)}>
-              <SelectTrigger className="w-48" size="sm" aria-label="Select metric">
-                <SelectValue placeholder="Metric" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                {METRICS.map((m) => (
-                  <SelectItem key={m.key} value={m.key} className="rounded-lg">{m.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {!MAP_VIZ_TYPES.has(vizType) && (
+              <Select value={metric} onValueChange={(val) => setMetric(val as MetricKey)}>
+                <SelectTrigger className="w-48" size="sm" aria-label="Select metric">
+                  <SelectValue placeholder="Metric" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl">
+                  {METRICS.map((m) => (
+                    <SelectItem key={m.key} value={m.key} className="rounded-lg">{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Select value={timeRange} onValueChange={setTimeRange}>
               <SelectTrigger className="w-36" size="sm" aria-label="Select time range">
                 <SelectValue placeholder="Time range" />
@@ -203,9 +208,9 @@ export function SensorVisualizations() {
         {compareMode && compareRobotIds.length === 0 && (
           <div className="text-sm text-muted-foreground">Select robots to compare from the sidebar.</div>
         )}
-        {loading && <div className="text-sm text-muted-foreground">Loading chart data…</div>}
-        {error && <div className="text-sm text-destructive">Failed to load chart data: {error}</div>}
-        {!loading && hasData && (
+        {!MAP_VIZ_TYPES.has(vizType) && loading && <div className="text-sm text-muted-foreground">Loading chart data…</div>}
+        {!MAP_VIZ_TYPES.has(vizType) && error && <div className="text-sm text-destructive">Failed to load chart data: {error}</div>}
+        {(MAP_VIZ_TYPES.has(vizType) || (!loading && hasData)) && (
           <SensorChartVisualization
             vizType={vizType}
             compareMode={compareMode}
@@ -213,6 +218,8 @@ export function SensorVisualizations() {
             mergedCompareData={mergedCompareData}
             compareRobotIds={compareRobotIds}
             robots={robots}
+            selectedRobotId={selectedRobotId ?? undefined}
+            hours={hours}
           />
         )}
       </CardContent>
