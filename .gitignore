@@ -1,1 +1,5 @@
 node_modules/
+/backend/.venv
+/.env
+/backend/.env
+

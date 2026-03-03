@@ -1,11 +1,9 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts"
-import { Loader2, AlertCircle } from "lucide-react"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
 
 import { useIsMobile } from "@/hooks/use-mobile"
-import { useTelemetryData } from "@/hooks/useTelemetryData"
 import {
   Card,
   CardAction,
@@ -27,291 +25,324 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-import aquasData from "./../mocks/sensor-data.json"
+export const description = "Sensor trends"
 
-export const description = "An interactive area chart with tabs for different metrics"
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000"
 
-const METRICS = {
+type SensorRow = {
+  timestamp: number
+  ph: number
+  temperature: number
+  dissolved_oxygen: number
+  electrical_conductivity: number
+  turbidity_ntu: number
+}
+
+type MetricKey = keyof Pick<
+  SensorRow,
+  "ph" | "temperature" | "dissolved_oxygen" | "electrical_conductivity" | "turbidity_ntu"
+>
+
+type MetricMeta = {
+  label: string
+  shortLabel: string
+  unit: string
+  description: string
+  colorVar: string
+}
+
+const METRICS: Record<MetricKey, MetricMeta> = {
   ph: {
     label: "pH",
+    shortLabel: "pH",
     unit: "pH",
-    color: "#8b5cf6",
-    description: "Acidity/Alkalinity",
-    min: 0,
-    max: 14,
-    normal: { min: 6.5, max: 8.5 },
+    description: "Acidity / alkalinity",
+    colorVar: "var(--chart-1)",
   },
   temperature: {
     label: "Temperature",
+    shortLabel: "Temp",
     unit: "°C",
-    color: "#f97316",
-    description: "Water Temperature",
-    min: 0,
-    max: 40,
-    normal: { min: 10, max: 30 },
+    description: "Water temperature",
+    colorVar: "var(--chart-2)",
   },
   dissolved_oxygen: {
     label: "Dissolved Oxygen",
+    shortLabel: "DO",
     unit: "mg/L",
-    color: "#06b6d4",
-    description: "Oxygen Levels",
-    min: 0,
-    max: 20,
-    normal: { min: 5, max: 15 },
+    description: "Dissolved oxygen levels",
+    colorVar: "var(--chart-3)",
   },
   electrical_conductivity: {
     label: "Electrical Conductivity",
+    shortLabel: "EC",
     unit: "µS/cm",
-    color: "#ec4899",
-    description: "Salinity/Minerals",
-    min: 0,
-    max: 2000,
-    normal: { min: 100, max: 1500 },
+    description: "Salinity / mineral load",
+    colorVar: "var(--chart-4)",
   },
   turbidity_ntu: {
     label: "Turbidity",
+    shortLabel: "Turbidity",
     unit: "NTU",
-    color: "#14b8a6",
-    description: "Water Clarity",
-    min: 0,
-    max: 100,
-    normal: { min: 0, max: 50 },
+    description: "Water clarity",
+    colorVar: "var(--chart-5)",
   },
 }
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload
-    const formattedTime = new Date(data.timestamp * 1000).toLocaleString()
-    return (
-      <div className="rounded-lg border border-border bg-background p-2 shadow-md">
-        <p className="text-xs text-muted-foreground">{formattedTime}</p>
-        <p className="font-semibold text-foreground">{payload[0].value.toFixed(2)}</p>
-      </div>
-    )
-  }
-  return null
-}
+const METRIC_OPTIONS = Object.keys(METRICS) as MetricKey[]
 
-const MetricChart = ({ metric, data, loading, error }: any) => {
-  const metricConfig = METRICS[metric as keyof typeof METRICS]
-  
-  if (!metricConfig) return null
+const RANGE_OPTIONS = [
+  { value: "30", label: "1 month" },
+  { value: "90", label: "3 months" },
+  { value: "180", label: "6 months" },
+  { value: "365", label: "1 year" },
+]
 
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-2 grid-cols-2 sm:grid-cols-4">
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Latest Value</p>
-          <p className="text-2xl font-bold">
-            {data.length > 0 ? data[data.length - 1].value.toFixed(2) : "—"}
-            <span className="text-xs text-muted-foreground ml-1">{metricConfig.unit}</span>
-          </p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Average</p>
-          <p className="text-2xl font-bold">
-            {data.length > 0 
-              ? (data.reduce((sum: number, d: any) => sum + d.value, 0) / data.length).toFixed(2)
-              : "—"}
-            <span className="text-xs text-muted-foreground ml-1">{metricConfig.unit}</span>
-          </p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Min</p>
-          <p className="text-2xl font-bold">
-            {data.length > 0 
-              ? Math.min(...data.map((d: any) => d.value)).toFixed(2)
-              : "—"}
-            <span className="text-xs text-muted-foreground ml-1">{metricConfig.unit}</span>
-          </p>
-        </div>
-        <div className="space-y-1">
-          <p className="text-xs text-muted-foreground">Max</p>
-          <p className="text-2xl font-bold">
-            {data.length > 0 
-              ? Math.max(...data.map((d: any) => d.value)).toFixed(2)
-              : "—"}
-            <span className="text-xs text-muted-foreground ml-1">{metricConfig.unit}</span>
-          </p>
-        </div>
-      </div>
+const chartConfig = {
+  metric: {
+    label: "Metric",
+  },
+  ph: { label: "pH", color: "var(--chart-1)" },
+  temperature: { label: "Temperature", color: "var(--chart-2)" },
+  dissolved_oxygen: { label: "Dissolved Oxygen", color: "var(--chart-3)" },
+  electrical_conductivity: { label: "Electrical Conductivity", color: "var(--chart-4)" },
+  turbidity_ntu: { label: "Turbidity", color: "var(--chart-5)" },
+} satisfies ChartConfig
 
-      <div className="h-[300px] w-full rounded-lg border border-border bg-card p-4">
-        {loading ? (
-          <div className="flex h-full items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : error ? (
-          <div className="flex h-full flex-col items-center justify-center gap-2">
-            <AlertCircle className="h-8 w-8 text-destructive" />
-            <p className="text-sm text-muted-foreground text-center">{error}</p>
-          </div>
-        ) : data.length === 0 ? (
-          <div className="flex h-full items-center justify-center">
-            <p className="text-muted-foreground">No data available</p>
-          </div>
-        ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <AreaChart
-              data={data}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-            >
-              <defs>
-                <linearGradient id={`gradient-${metric}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={metricConfig.color} stopOpacity={0.8} />
-                  <stop offset="95%" stopColor={metricConfig.color} stopOpacity={0.1} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-              <XAxis
-                dataKey="timestamp"
-                tickFormatter={(value) => {
-                  const date = new Date(value * 1000)
-                  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                }}
-                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                stroke="var(--border)"
-              />
-              <YAxis
-                label={{
-                  value: metricConfig.unit,
-                  angle: -90,
-                  position: "insideLeft",
-                  style: { fill: "var(--muted-foreground)", fontSize: 12 },
-                }}
-                tick={{ fontSize: 12, fill: "var(--muted-foreground)" }}
-                stroke="var(--border)"
-              />
-              <RechartsTooltip content={<CustomTooltip />} />
-              <Area
-                type="monotone"
-                dataKey="value"
-                fill={`url(#gradient-${metric})`}
-                stroke={metricConfig.color}
-                strokeWidth={2}
-                isAnimationActive={true}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        )}
-      </div>
-    </div>
-  )
-}
+const formatDate = (ts: number) => new Date(ts * 1000).toLocaleDateString()
+const formatNumber = (value: number) => value.toFixed(2)
+const AREA_TOP_OPACITY = 0.82
+const AREA_BOTTOM_OPACITY = 0.18
 
 export function ChartAreaInteractive() {
   const isMobile = useIsMobile()
-  const [selectedMetric, setSelectedMetric] = React.useState("ph")
-  // default to 30 days so inserted mock data from Oct/2025 is included
-  const [timeRange, setTimeRange] = React.useState("30d")
+  const [timeRange, setTimeRange] = React.useState("90")
+  const [metric, setMetric] = React.useState<MetricKey>("ph")
+  const [data, setData] = React.useState<SensorRow[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
-  const hoursMap: Record<string, number> = {
-    "24h": 24,
-    "7d": 168,
-    "30d": 720,
-  }
+  React.useEffect(() => {
+    if (isMobile) {
+      setTimeRange("30")
+    }
+  }, [isMobile])
 
-  const { data: phData, loading: phLoading, error: phError } = useTelemetryData({
-    metric: "ph",
-    hours: hoursMap[timeRange],
-  })
+  React.useEffect(() => {
+    const controller = new AbortController()
+    const fetchData = async () => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await fetch(`${API_BASE}/views/query`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ view: "all", params: { limit: 5000 } }),
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`)
+        }
+        const payload = (await response.json()) as { rows?: any[] }
+        const rows = payload.rows ?? []
+        const normalized = rows
+          .map((row) => {
+            const ts = typeof row.timestamp === "number" ? row.timestamp : Number(row.timestamp)
+            if (!Number.isFinite(ts)) return null
+            const toNumber = (v: unknown) => (typeof v === "number" ? v : Number(v))
+            const ph = toNumber(row.ph)
+            const temperature = toNumber(row.temperature)
+            const dissolved_oxygen = toNumber(row.dissolved_oxygen)
+            const electrical_conductivity = toNumber(row.electrical_conductivity)
+            const turbidity_ntu = toNumber(row.turbidity_ntu)
+            if (
+              [ph, temperature, dissolved_oxygen, electrical_conductivity, turbidity_ntu].some(
+                (v) => !Number.isFinite(v)
+              )
+            ) {
+              return null
+            }
+            return {
+              timestamp: ts,
+              ph,
+              temperature,
+              dissolved_oxygen,
+              electrical_conductivity,
+              turbidity_ntu,
+            } satisfies SensorRow
+          })
+          .filter((row): row is SensorRow => row !== null)
 
-  const { data: tempData, loading: tempLoading, error: tempError } = useTelemetryData({
-    metric: "temperature",
-    hours: hoursMap[timeRange],
-  })
+        setData(normalized)
+      } catch (err) {
+        if (controller.signal.aborted) return
+        setError(err instanceof Error ? err.message : "Failed to load chart data")
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+    fetchData()
+    return () => controller.abort()
+  }, [])
 
-  const { data: doData, loading: doLoading, error: doError } = useTelemetryData({
-    metric: "dissolved_oxygen",
-    hours: hoursMap[timeRange],
-  })
+  const filteredData = React.useMemo(() => {
+    const days = Number(timeRange) || 90
+    const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000
+    return data
+      .filter((item) => item.timestamp * 1000 >= cutoffMs)
+      .map((item) => ({
+        timestamp: item.timestamp,
+        date: formatDate(item.timestamp),
+        value: item[metric],
+      }))
+      .sort((a, b) => (a.date > b.date ? 1 : -1))
+  }, [data, metric, timeRange])
 
-  const { data: ecData, loading: ecLoading, error: ecError } = useTelemetryData({
-    metric: "electrical_conductivity",
-    hours: hoursMap[timeRange],
-  })
+  const metricMeta = METRICS[metric]
 
-  const { data: turbidityData, loading: turbidityLoading, error: turbidityError } =
-    useTelemetryData({
-      metric: "turbidity_ntu",
-      hours: hoursMap[timeRange],
-    })
-
-  const metricDataMap: Record<string, any> = {
-    ph: { data: phData, loading: phLoading, error: phError },
-    temperature: { data: tempData, loading: tempLoading, error: tempError },
-    dissolved_oxygen: { data: doData, loading: doLoading, error: doError },
-    electrical_conductivity: { data: ecData, loading: ecLoading, error: ecError },
-    turbidity_ntu: { data: turbidityData, loading: turbidityLoading, error: turbidityError },
-  }
+  const summary = React.useMemo(() => {
+    if (!filteredData.length) {
+      return { latest: null, average: null, min: null, max: null }
+    }
+    const values = filteredData.map((item) => item.value)
+    const latest = values[values.length - 1] ?? null
+    const average = values.reduce((acc, value) => acc + value, 0) / values.length
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    return { latest, average, min, max }
+  }, [filteredData])
 
   return (
-    <Card className="w-full">
+    <Card className="@container/card">
       <CardHeader>
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-2xl">Water Quality Metrics</CardTitle>
-              <CardDescription>Real-time sensor data visualization</CardDescription>
-            </div>
+        <CardTitle>{metricMeta.label} Trend</CardTitle>
+        <CardDescription>
+          <span className="hidden @[540px]/card:block">
+            {metricMeta.description} over the selected time window
+          </span>
+        </CardDescription>
+        <CardAction>
+          <div className="flex flex-wrap items-center gap-2">
             <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-full sm:w-[150px]">
-                <SelectValue placeholder="Select time range" />
+              <SelectTrigger className="w-36" size="sm" aria-label="Select time range">
+                <SelectValue placeholder="Time range" />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="24h">Last 24 hours</SelectItem>
-                <SelectItem value="7d">Last 7 days</SelectItem>
-                <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectContent className="rounded-xl">
+                {RANGE_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value} value={opt.value} className="rounded-lg">
+                    {opt.label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
-
-          {/* Tabs for metric selection */}
-          <Tabs
-            value={selectedMetric}
-            onValueChange={setSelectedMetric}
-            className="w-full"
-          >
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 gap-1 h-auto p-1 bg-muted rounded-lg">
-              {Object.entries(METRICS).map(([key, metric]) => (
-                <TabsTrigger
-                  key={key}
-                  value={key}
-                  className="rounded px-2 py-2 text-xs sm:text-sm flex flex-col items-center justify-center gap-1"
-                >
-                  <span>{metric.label}</span>
-                  <span className="text-xs text-muted-foreground">{metric.unit}</span>
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </div>
+        </CardAction>
       </CardHeader>
-
       <CardContent>
-        <Tabs value={selectedMetric} onValueChange={setSelectedMetric} className="w-full">
-          {Object.entries(METRICS).map(([key, metric]) => {
-            const { data, loading, error } = metricDataMap[key]
-            return (
-              <TabsContent key={key} value={key} className="space-y-4">
-                <MetricChart
-                  metric={key}
-                  data={data}
-                  loading={loading}
-                  error={error}
+        <Tabs value={metric} onValueChange={(value) => setMetric(value as MetricKey)} className="mb-4 w-full">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-5">
+            {METRIC_OPTIONS.map((key) => (
+              <TabsTrigger
+                key={key}
+                value={key}
+                className="rounded-md px-2 py-2 text-xs sm:text-sm flex items-center gap-1.5"
+              >
+                <span
+                  className="inline-block h-2 w-2 rounded-full"
+                  style={{ backgroundColor: METRICS[key].colorVar }}
                 />
-              </TabsContent>
-            )
-          })}
+                {METRICS[key].shortLabel}
+              </TabsTrigger>
+            ))}
+          </TabsList>
         </Tabs>
+
+        <div className="mb-4 grid gap-2 grid-cols-2 sm:grid-cols-4">
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Latest</div>
+            <div className="text-base font-semibold">
+              {summary.latest === null ? "—" : formatNumber(summary.latest)} {metricMeta.unit}
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Average</div>
+            <div className="text-base font-semibold">
+              {summary.average === null ? "—" : formatNumber(summary.average)} {metricMeta.unit}
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Min</div>
+            <div className="text-base font-semibold">
+              {summary.min === null ? "—" : formatNumber(summary.min)} {metricMeta.unit}
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <div className="text-xs text-muted-foreground">Max</div>
+            <div className="text-base font-semibold">
+              {summary.max === null ? "—" : formatNumber(summary.max)} {metricMeta.unit}
+            </div>
+          </div>
+        </div>
+
+        {loading ? <div className="text-sm text-muted-foreground">Loading chart data…</div> : null}
+        {error ? <div className="text-sm text-red-600">Failed to load chart data: {error}</div> : null}
+        {!loading && filteredData.length === 0 ? (
+          <div className="text-sm text-muted-foreground">No data for this range.</div>
+        ) : null}
+        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+          <AreaChart
+            accessibilityLayer
+            data={filteredData}
+            margin={{
+              left: 12,
+              right: 12,
+            }}
+          >
+            <defs>
+              <linearGradient id={`metricGradient-${metric}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={metricMeta.colorVar} stopOpacity={AREA_TOP_OPACITY} />
+                <stop offset="95%" stopColor={metricMeta.colorVar} stopOpacity={AREA_BOTTOM_OPACITY} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} strokeDasharray="4 4" />
+            <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} minTickGap={16} />
+            <YAxis tickLine={false} axisLine={false} tickMargin={8} width={44} />
+            <ChartTooltip
+              cursor={{ stroke: metricMeta.colorVar, strokeOpacity: 0.3 }}
+              content={
+                <ChartTooltipContent
+                  indicator="dot"
+                  color={metricMeta.colorVar}
+                  labelFormatter={(_, payload) => {
+                    const ts = payload?.[0]?.payload?.timestamp
+                    return typeof ts === "number" ? new Date(ts * 1000).toLocaleString() : ""
+                  }}
+                  formatter={(value) => (
+                    <>
+                      <span className="text-muted-foreground">{metricMeta.label}</span>
+                      <span className="text-foreground font-mono font-medium tabular-nums">
+                        {Number(value).toFixed(2)} {metricMeta.unit}
+                      </span>
+                    </>
+                  )}
+                />
+              }
+            />
+            <Area
+              dataKey="value"
+              type="natural"
+              fill={`url(#metricGradient-${metric})`}
+              stroke={metricMeta.colorVar}
+              strokeWidth={2.5}
+              isAnimationActive
+              activeDot={{ r: 4.5, fill: metricMeta.colorVar, stroke: "var(--background)", strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ChartContainer>
       </CardContent>
     </Card>
   )
