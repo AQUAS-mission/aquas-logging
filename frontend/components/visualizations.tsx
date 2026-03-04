@@ -177,7 +177,12 @@ export function SensorVisualizations() {
           <div className="flex flex-wrap gap-2">
             {!MAP_VIZ_TYPES.has(vizType) && (
               <Select value={metric} onValueChange={(val) => setMetric(val as MetricKey)}>
-                <SelectTrigger className="w-48" size="sm" aria-label="Select metric">
+                <SelectTrigger 
+                  className="w-48 border border-border" 
+                  size="sm" 
+                  aria-label="Select metric"
+                  style={{ backgroundColor: '#1B263B' }}
+                >
                   <SelectValue placeholder="Metric" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl">
@@ -188,7 +193,12 @@ export function SensorVisualizations() {
               </Select>
             )}
             <Select value={timeRange} onValueChange={setTimeRange}>
-              <SelectTrigger className="w-36" size="sm" aria-label="Select time range">
+              <SelectTrigger 
+                className="w-36 border border-border" 
+                size="sm" 
+                aria-label="Select time range"
+                style={{ backgroundColor: '#1B263B' }}
+              >
                 <SelectValue placeholder="Time range" />
               </SelectTrigger>
               <SelectContent className="rounded-xl">
@@ -220,6 +230,7 @@ export function SensorVisualizations() {
             robots={robots}
             selectedRobotId={selectedRobotId ?? undefined}
             hours={hours}
+            metric={metric}
           />
         )}
       </CardContent>
