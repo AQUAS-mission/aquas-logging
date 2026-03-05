@@ -89,11 +89,11 @@
   --sidebar-border: oklch(36.19% 0.0355 251.94);
   --sidebar-ring: oklch(47.99% 0.1158 242.91);
 
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
+  --chart-1: oklch(0.488 0.243 264.376);  /* Dark purple - Turbidity */
+  --chart-2: oklch(0.6 0.118 184.704);    /* Teal/blue - Dissolved Oxygen */
+  --chart-3: oklch(0.498 0.12 240);       /* Dark blue - Temperature */
+  --chart-4: oklch(0.72 0.19 50);         /* Orange - Electrical Conductivity */
+  --chart-5: oklch(0.637 0.237 25.331);   /* Red - pH */
   --sidebar: oklch(28.46% 0.0246 251.11);
 }
 
@@ -116,11 +116,11 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
+  --chart-1: oklch(0.55 0.25 264.376);    /* Lighter purple - Turbidity */
+  --chart-2: oklch(0.65 0.15 184.704);    /* Lighter teal - Dissolved Oxygen */
+  --chart-3: oklch(0.58 0.15 240);        /* Lighter blue - Temperature */
+  --chart-4: oklch(0.75 0.20 50);         /* Lighter orange - Electrical Conductivity */
+  --chart-5: oklch(0.68 0.24 25.331);     /* Lighter red - pH */
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
