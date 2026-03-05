@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -11,9 +12,9 @@ from pathlib import Path
 from typing import Optional
 
 ROOT_DIR = Path(__file__).resolve().parent
-ENV_FILE = ROOT_DIR / ".env"
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
+ENV_FILES = [ROOT_DIR / ".env", BACKEND_DIR / ".env"]
 MIGRATIONS_DIR = BACKEND_DIR / "migrations"
 
 MANDATORY_MIGRATIONS = [
@@ -228,10 +229,14 @@ def terminate_process(process: Optional[subprocess.Popen[str]], label: str) -> N
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Start PostgreSQL check + migrations + backend + frontend")
+    if os.name == "nt":
+        _default_psql = os.getenv("PSQL_PATH", r"C:\Program Files\PostgreSQL\18\bin\psql.exe")
+    else:
+        _default_psql = os.getenv("PSQL_PATH", shutil.which("psql") or "/usr/local/bin/psql")
     parser.add_argument(
         "--psql-path",
-        default=os.getenv("PSQL_PATH", r"C:\Program Files\PostgreSQL\18\bin\psql.exe"),
-        help="Path to psql.exe",
+        default=_default_psql,
+        help="Path to psql binary",
     )
     parser.add_argument("--pg-host", default=os.getenv("POSTGRES_HOST", "127.0.0.1"))
     parser.add_argument("--pg-user", default=os.getenv("POSTGRES_USER", "postgres"))
@@ -254,7 +259,8 @@ def prompt_password(user: str) -> Optional[str]:
 
 
 def main() -> int:
-    load_env_file(ENV_FILE)
+    for env_file in ENV_FILES:
+        load_env_file(env_file)
     args = parse_args()
     psql_path = Path(args.psql_path)
 
@@ -302,8 +308,15 @@ def main() -> int:
             print("[run] Aborting startup because migration setup failed.")
             return 1
 
+    venv_dir = BACKEND_DIR / "venv"
+    if os.name == "nt":
+        venv_python = venv_dir / "Scripts" / "python.exe"
+    else:
+        venv_python = venv_dir / "bin" / "python"
+    backend_python = str(venv_python) if venv_python.exists() else sys.executable
+
     backend_cmd = [
-        sys.executable,
+        backend_python,
         "-m",
         "uvicorn",
         "main:app",
