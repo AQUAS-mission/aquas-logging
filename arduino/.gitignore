@@ -1,0 +1,33 @@
+# Arduino IDE
+*.hex
+*.elf
+*.bin
+*.map
+
+# Configuration files (may contain credentials)
+config.h
+
+# Build artifacts
+build/
+*.o
+*.a
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
