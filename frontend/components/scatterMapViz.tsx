@@ -30,23 +30,14 @@ type PopupInfo = {
   row: MapRow
 }
 
-export function ScatterMapViz({ compareMode, compareRobotIds, robots, selectedRobotId, hours = 90 * 24 }: VizProps) {
+export function ScatterMapViz({ compareMode, compareRobotIds, robots, selectedRobotId }: VizProps) {
   const { data: session } = useSession()
   const mapRef = React.useRef<MapRef>(null)
   const [rows, setRows] = React.useState<MapRow[]>([])
   const [popupInfo, setPopupInfo] = React.useState<PopupInfo | null>(null)
+  const [hours] = React.useState(90 * 24)
 
   const robotIds = compareMode ? compareRobotIds : selectedRobotId ? [selectedRobotId] : []
-
-  const initialViewState = React.useMemo(() => {
-    const active = robots.filter(
-      (r) => robotIds.includes(r.robot_id) && r.last_latitude != null && r.last_longitude != null
-    )
-    if (active.length === 0) return { longitude: -100, latitude: 40, zoom: 3 }
-    const avgLng = active.reduce((s, r) => s + r.last_longitude!, 0) / active.length
-    const avgLat = active.reduce((s, r) => s + r.last_latitude!, 0) / active.length
-    return { longitude: avgLng, latitude: avgLat, zoom: 12 }
-  }, [robotIds.join(","), robots])
 
   React.useEffect(() => {
     if (!session?.user?.accessToken || robotIds.length === 0) {
@@ -152,9 +143,8 @@ export function ScatterMapViz({ compareMode, compareRobotIds, robots, selectedRo
 
   return (
     <Map
-      key={robotIds.join(",")}
       ref={mapRef}
-      initialViewState={initialViewState}
+      initialViewState={{ longitude: -100, latitude: 40, zoom: 15 }}
       style={{ width: "100%", height: "100%" }}
       mapStyle="https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
       interactiveLayerIds={["scatter-points"]}
@@ -176,19 +166,10 @@ export function ScatterMapViz({ compareMode, compareRobotIds, robots, selectedRo
       </Source>
 
       {popupInfo && (
-        <Popup
-          longitude={popupInfo.longitude}
-          latitude={popupInfo.latitude}
-          closeButton={false}
-          anchor="bottom"
-          offset={12}
-          className="aquas-popup"
-        >
-          <div>
+        <Popup longitude={popupInfo.longitude} latitude={popupInfo.latitude} closeButton={false} anchor="bottom" offset={12}>
+          <div style={{ fontSize: 12, lineHeight: 1.6, minWidth: 160 }}>
             <div style={{ fontWeight: 700, marginBottom: 2 }}>{popupInfo.row.robotName}</div>
-            <div style={{ color: "var(--muted-foreground)", marginBottom: 6 }}>
-              {new Date(popupInfo.row.timestamp).toLocaleString()}
-            </div>
+            <div style={{ color: "#aaa", marginBottom: 6 }}>{new Date(popupInfo.row.timestamp).toLocaleString()}</div>
             <div>pH: <strong>{fmt(popupInfo.row.ph)}</strong></div>
             <div>Temp: <strong>{fmt(popupInfo.row.temperature)} °C</strong></div>
             <div>DO: <strong>{fmt(popupInfo.row.dissolved_oxygen)} mg/L</strong></div>

@@ -16,10 +16,30 @@ import datetime as dt
 import os
 import random
 import uuid
+from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import asyncpg
 import bcrypt
+
+
+def load_env_file() -> None:
+    """Load environment variables from .env file in project root."""
+    script_dir = Path(__file__).parent
+    root_dir = script_dir.parent
+    env_file = root_dir / ".env"
+    
+    if not env_file.exists():
+        return
+    
+    with open(env_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" in line:
+                key, value = line.split("=", 1)
+                os.environ.setdefault(key.strip(), value.strip())
 
 
 def db_config() -> Dict[str, Any]:
@@ -67,7 +87,13 @@ def generate_rows(
 
 async def ensure_schema(conn: asyncpg.Connection) -> None:
     """Create the TimescaleDB extension, schema, table, and hypertable if they don't exist."""
-    await conn.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
+    try:
+        await conn.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE")
+        has_timescaledb = True
+    except Exception as e:
+        print(f"TimescaleDB not available ({e}), continuing with plain PostgreSQL tables...")
+        has_timescaledb = False
+    
     await conn.execute("CREATE SCHEMA IF NOT EXISTS waterq")
 
     await conn.execute("""
@@ -92,14 +118,20 @@ async def ensure_schema(conn: asyncpg.Connection) -> None:
         )
     """)
 
-    await conn.execute("""
-        SELECT create_hypertable('waterq.measurements', 'time',
-            chunk_time_interval => INTERVAL '7 days',
-            if_not_exists => TRUE,
-            migrate_data => TRUE
-        )
-    """)
-    print("Schema and hypertable ready.")
+    if has_timescaledb:
+        try:
+            await conn.execute("""
+                SELECT create_hypertable('waterq.measurements', 'time',
+                    chunk_time_interval => INTERVAL '7 days',
+                    if_not_exists => TRUE,
+                    migrate_data => TRUE
+                )
+            """)
+            print("Schema and hypertable ready.")
+        except Exception as e:
+            print(f"Could not create hypertable ({e}), using regular table.")
+    else:
+        print("Schema and regular table ready.")
 
 
 async def setup_test_user_and_robots(conn: asyncpg.Connection) -> List[uuid.UUID]:
@@ -167,6 +199,8 @@ async def load_fake_data(
 
 
 def main() -> None:
+    load_env_file()
+    
     parser = argparse.ArgumentParser(description="Load synthetic data into waterq.measurements")
     parser.add_argument("--weeks", type=int, default=4, help="How many weeks of data to generate")
     parser.add_argument("--interval-mins", type=int, default=15, help="Interval between points")
