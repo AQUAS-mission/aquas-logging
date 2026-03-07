@@ -59,8 +59,8 @@ AQUAS is a platform where water quality researchers deploy sensor-equipped robot
   | `last_latitude` | DOUBLE PRECISION | NULLABLE |
   | `is_active` | BOOLEAN | default TRUE |
   | `created_at` | TIMESTAMPTZ | default `now()` |
-- [ ] Create index on `user_id`
-- [ ] Create index on `serial_number`
+- [x] Create index on `user_id`
+- [x] Create index on `serial_number`
 - [ ] MQTT columns (`mqtt_username`, `mqtt_password`) deferred until ingestion pipeline is built
 
 ### 1.4 Add robot_id to Measurements
@@ -414,11 +414,309 @@ Restricted SQL query endpoint for the advanced filter/editor feature.
 
 ---
 
+## Phase 6: MQTT Integration & Arduino Firmaware
+
+**Architecture recap:**
+```
+Arduino Uno + SIM7000A
+  └─ publishes JSON over LTE-M cellular
+       └─► Mosquitto broker (Docker, port 1883 now / 8883 TLS later)
+              topic: aquas/v1/robots/{serial_number}/telemetry
+              lwt:   aquas/v1/robots/{serial_number}/status → "offline"
+              auth:  username=serial_number, password=device_token
+                └─► MQTT Ingestion Worker (Python, separate Docker service)
+                       subscribes: aquas/v1/robots/+/telemetry
+                                   aquas/v1/robots/+/status
+                       └─► TimescaleDB  ──►  FastAPI  ──►  Next.js dashboard
+```
+
+**Auth model:** Each robot has a `device_token` — a long random secret baked into
+firmware at provisioning time. The robot authenticates to Mosquitto with
+`username=serial_number` / `password=device_token`. This is completely separate
+from user account auth (NextAuth + JWT), which is only for the dashboard.
+
+**Topic versioning:** All topics are prefixed `aquas/v1/` so the schema can evolve
+(payload fields added/removed, new topic types) without breaking deployed robots
+still on the old firmware. Bump to `aquas/v2/` when making a breaking change.
+
+**Last Will & Testament (LWT):** Configured on the Arduino at connect time. If the
+robot drops off the network unexpectedly (no clean disconnect), the broker automatically
+publishes `"offline"` to `aquas/v1/robots/{serial}/status`. The ingestion worker
+subscribes to status topics and updates `waterq.robots.is_active` accordingly.
+The dashboard can then show a live online/offline badge per robot.
+
+---
+
+### 6.1 DB Migration — `device_token` column
+
+**File:** `backend/migrations/005_device_token.sql`
+
+- [ ] `CREATE EXTENSION IF NOT EXISTS pgcrypto;` — needed for `gen_random_bytes()`
+- [ ] `ALTER TABLE waterq.robots ADD COLUMN IF NOT EXISTS device_token TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(32), 'hex')`
+  - The DEFAULT means existing rows get a token automatically on migration
+- [ ] Create unique index on `device_token`
+- [ ] Update `load_fake_data.py` — test robots should have a known hardcoded token for easy dev/testing
+
+**Docs:**
+- pgcrypto extension: https://www.postgresql.org/docs/current/pgcrypto.html
+- `gen_random_bytes`: https://www.postgresql.org/docs/current/pgcrypto.html#PGCRYPTO-RANDOM-FUNCTIONS
+- `ALTER TABLE ADD COLUMN`: https://www.postgresql.org/docs/current/sql-altertable.html
+
+---
+
+### 6.2 Mosquitto Broker — Config & Docker
+
+**What Mosquitto is:** An open-source MQTT message broker. Robots publish sensor
+readings to it; the ingestion worker subscribes and drains them into the DB.
+It runs independently of FastAPI — broker messages persist across app restarts.
+
+**Files to create:**
+```
+mosquitto/
+  mosquitto.conf      ← broker configuration
+  acl.conf            ← per-robot topic restrictions
+  passwd              ← hashed credentials file, gitignored
+```
+
+**`mosquitto.conf` settings to configure:**
+- `listener 1883` — plain MQTT (TLS on 8883 deferred, see notes below)
+- `allow_anonymous false` — every connection must have credentials
+- `password_file /mosquitto/config/passwd`
+- `acl_file /mosquitto/config/acl.conf`
+- `persistence true` + `persistence_location /mosquitto/data/` — survive restarts
+- `log_dest stdout` — Docker-friendly logging
+
+**`acl.conf` pattern — one block per robot:**
+```
+# each robot may only WRITE to its own versioned topics
+user SN-001
+topic write aquas/v1/robots/SN-001/telemetry
+topic write aquas/v1/robots/SN-001/status
+
+user SN-002
+topic write aquas/v1/robots/SN-002/telemetry
+topic write aquas/v1/robots/SN-002/status
+
+# ingestion worker reads all robot topics across all versions
+user mqtt_ingestion_worker
+topic read aquas/+/robots/#
+```
+
+**Note on ACL + LWT:** The LWT message is published by the *broker* on the robot's behalf,
+but the broker publishes it using the robot's credentials. This means the robot's ACL must
+include `write` on its own status topic, or the LWT will be silently blocked.
+
+**Generating the `passwd` file:**
+Use the `mosquitto_passwd` CLI tool (ships with Mosquitto). Run it inside a
+temporary Mosquitto container — you do NOT need Mosquitto installed locally:
+```bash
+docker run --rm -v $(pwd)/mosquitto:/mosquitto/config eclipse-mosquitto:2 \
+  mosquitto_passwd -b /mosquitto/config/passwd SN-001 <device_token>
+```
+
+**Docs:**
+- Mosquitto config full reference: https://mosquitto.org/man/mosquitto-conf-5.html
+- mosquitto_passwd tool: https://mosquitto.org/man/mosquitto_passwd-1.html
+- ACL file format (search "acl_file"): https://mosquitto.org/man/mosquitto-conf-5.html
+- Eclipse Mosquitto Docker image: https://hub.docker.com/_/eclipse-mosquitto
+- MQTT topic best practices / wildcard syntax: https://www.hivemq.com/blog/mqtt-essentials-part-5-mqtt-topics-best-practices/
+
+---
+
+### 6.3 Robot Provisioning Script
+
+**File:** `backend/provision_robot.py` — run by admin/hardware team, not part of FastAPI
+
+This is how new robots get added to the system before users claim them.
+
+**What it does:**
+1. Accepts `--name` and `--serial` as CLI args
+2. Inserts a row into `waterq.robots` (no `user_id` — unclaimed)
+3. Reads the auto-generated `device_token` back from the DB
+4. Appends entry to `mosquitto/passwd` via subprocess `mosquitto_passwd`
+5. Appends the robot's ACL block to `mosquitto/acl.conf`
+6. Sends `SIGHUP` to the Mosquitto container to reload config without restart (`docker kill --signal=SIGHUP mosquitto`)
+7. Prints the `device_token` to stdout — this value gets pasted into `config.h` and flashed onto the Arduino
+
+**Usage:**
+```bash
+python provision_robot.py --name "Robot Alpha" --serial "SN-001"
+# Output:
+# Robot created: SN-001
+# device_token:  a3f9c2d1e4b7...   <-- paste into firmware config.h
+# Mosquitto credentials updated.
+```
+**Docs:**
+- argparse (CLI args): https://docs.python.org/3/library/argparse.html
+- subprocess: https://docs.python.org/3/library/subprocess.html
+- `docker kill --signal`: https://docs.docker.com/reference/cli/docker/container/kill/
+
+---
+
+### 6.4 MQTT Ingestion Worker
+
+**File:** `backend/mqtt_ingestion.py` — runs as its own Docker service
+
+An async Python process that bridges Mosquitto → TimescaleDB.
+
+**Logic:**
+1. Connect to Mosquitto with ingestion worker credentials
+2. Subscribe to `aquas/v1/robots/+/telemetry` and `aquas/v1/robots/+/status`
+3. On **telemetry** message:
+   - Parse JSON payload
+   - Validate sensor value ranges (match the DB CHECK constraints in `000_init_schema.sql`)
+   - Look up `robot_id` from `serial_number` (`SELECT robot_id FROM waterq.robots WHERE serial_number = $1`)
+   - `INSERT INTO waterq.measurements (time, robot_id, longitude, latitude, temperature_c, turbidity_ntu, ec_us_cm, tdo_mg_l, ph)`
+   - `UPDATE waterq.robots SET last_seen_at = NOW(), last_latitude = $1, last_longitude = $2, is_active = TRUE WHERE robot_id = $3`
+4. On **status** message (`"online"` or `"offline"`):
+   - Extract serial number from topic path (`aquas/v1/robots/{serial}/status`)
+   - `UPDATE waterq.robots SET is_active = ($1 = 'online') WHERE serial_number = $2`
+   - This powers the online/offline badge on the dashboard
+5. Auto-reconnect if broker drops (aiomqtt handles this with an async `for` loop pattern)
+
+**Expected JSON payload from Arduino:**
+```json
+{
+  "serial": "SN-001",
+  "ts":     "2026-03-07T12:00:00Z",
+  "lat":    40.7484,
+  "lon":    -73.9857,
+  "temp":   22.5,
+  "turb":   3.2,
+  "ec":     450.0,
+  "tdo":    8.1,
+  "ph":     7.2
+}
+```
+
+**Docs:**
+- aiomqtt getting started: https://aiomqtt.bo3hm.de/
+- aiomqtt reconnection pattern: https://aiomqtt.bo3hm.de/reconnection.html
+- aiomqtt filtered messages (subscribe to wildcard): https://aiomqtt.bo3hm.de/filtering-messages.html
+
+---
+
+### 6.5 Arduino Firmware — SIM7000A on Uno
+
+**Hardware:** Arduino Uno + SIM7000A soldered directly.
+
+**Critical Uno constraints:**
+- **2KB SRAM only** — must use `F()` macro on every string literal or you'll silently
+  run out of memory and get random crashes/hangs. No exceptions.
+- SIM7000A must use **SoftwareSerial** — Uno's only HW serial (pins 0/1) is occupied by USB/monitor
+- SoftwareSerial is reliable at **9600 baud** on Uno — do not go higher or you'll drop bytes
+- SIM7000A has **built-in GNSS** — no separate GPS module needed
+
+**Files to create:**
+```
+firmware/
+  aquas_robot/
+    config.h           ← gitignored, one file per physical robot
+    aquas_robot.ino    ← main sketch
+    README.md          ← wiring, library install, flashing instructions
+```
+
+**`config.h` template:**
+```cpp
+// Carrier APN — examples: "hologram" (Hologram), "iot.1nce.net" (1NCE)
+// Find yours at: https://www.apnsettings.org/
+#define CELLULAR_APN    "your_apn_here"
+
+// MQTT broker — must be reachable over public internet via LTE
+// For dev: use ngrok TCP tunnel or deploy broker to a VPS
+#define MQTT_BROKER     "your.broker.ip.or.hostname"
+#define MQTT_PORT       1883
+
+// Per-device identity — output of provision_robot.py
+#define DEVICE_SERIAL   "SN-001"
+#define DEVICE_TOKEN    "a3f9c2d1e4b7..."
+
+// How often to publish sensor readings (milliseconds)
+#define PUBLISH_INTERVAL_MS 30000UL
+
+// SoftwareSerial pins — adjust to match your wiring
+#define SIM_TX_PIN 7   // Arduino TX → SIM7000A RX
+#define SIM_RX_PIN 8   // Arduino RX ← SIM7000A TX
+#define SIM_RST_PIN 6  // Optional reset pin
+```
+
+**Required Arduino libraries** (all available in Library Manager, `Sketch → Include Library → Manage Libraries`):
+
+| `TinyGSM` | Volodymyr Shymanskyy | AT-command driver for SIM7000A |
+| `PubSubClient` | Nick O'Leary | MQTT client over TinyGSM |
+| `ArduinoJson` | Benoit Blanchon | Build JSON payload |
+| `SoftwareSerial` | Arduino | Talk to SIM7000A (built-in, no install needed) |
+
+**SRAM-saving TinyGSM config** — add these `#define`s BEFORE `#include <TinyGsmClient.h>`:
+```cpp
+#define TINY_GSM_MODEM_SIM7000
+#define TINY_GSM_RX_BUFFER 64   // shrink from default 1024 — saves ~960 bytes SRAM
+```
+
+**Last Will & Testament notes:**
+- `setWill()` must be called before `connect()` — the broker stores it at connect time
+- Use `retain=true` so the broker holds the last status message; new subscribers (dashboard page loads) immediately get the current state without waiting for the next publish
+- In `reconnect()`, re-publish `"online"` after a successful reconnect so the retained status stays accurate
+- PubSubClient `setWill` signature: `mqtt.setWill(topic, payload, retained, qos)`
+- Docs: https://pubsubclient.knolleary.net/api#setwill
+
+**SIM7000A GNSS notes:**
+- Cold start fix can take 30–90 seconds outdoors — must handle the "no fix yet" case
+  gracefully (skip publish or publish with lat=0/lon=0 flagged)
+- TinyGSM `getGPS()` returns `false` if no fix — check the return value
+- GNSS power: `modem.enableGPS()` in setup, `modem.disableGPS()` if you want to save
+  power between readings
+
+**SRAM free memory helper — paste this to debug crashes:**
+```cpp
+int freeMemory() {
+  extern int __heap_start, *__brkval;
+  int v;
+  return (int)&v - (__brkval == 0 ? (int)&__heap_start : (int)__brkval);
+}
+// Call Serial.println(freeMemory()) in setup() — should be > 500 bytes minimum
+```
+
+**Docs:**
+- TinyGSM README + SIM7000 notes: https://github.com/vshymanskyy/TinyGSM
+- TinyGSM SIM7000 MQTT example: https://github.com/vshymanskyy/TinyGSM/blob/master/examples/MqttClient/MqttClient.ino
+- PubSubClient API reference: https://pubsubclient.knolleary.net/api
+- ArduinoJson v7 code generator (paste your payload, get exact code): https://arduinojson.org/v7/assistant/
+- SoftwareSerial: https://docs.arduino.cc/learn/built-in-libraries/software-serial/
+- Botletics SIM7000 shield repo (great reference for wiring + AT commands, even without their shield): https://github.com/botletics/SIM7000-LTE-Shield
+- SIMCOM SIM7000A AT Command Manual: search "SIM7000 Series_AT Command Manual" on https://simcom.ee/documents/ — covers GNSS (`AT+CGNSINF`), SSL, MQTT AT commands
+- APN lookup by carrier: https://www.apnsettings.org/
+
+---
+
+### 6.6 Docker Compose — Full Stack
+
+**File:** `docker-compose.yml` at project root
+
+Brings up the entire stack with one command: `docker compose up`
+
+**Services:**
+- `timescaledb` — existing DB, moved from manual `docker run`
+- `backend` — FastAPI + uvicorn
+- `frontend` — Next.js production build
+- `mosquitto` — MQTT broker
+- `mqtt_ingestion` — ingestion worker
+
+**Docs:**
+- Docker Compose reference: https://docs.docker.com/compose/compose-file/
+- TimescaleDB Docker image: https://hub.docker.com/r/timescale/timescaledb
+- Compose `depends_on` with health checks: https://docs.docker.com/compose/how-tos/startup-order/
+
+---
+
 ## Deferred (out of current scope)
 
 - **unify css variables etc into a css file**
-- **MQTT ingestion pipeline** — blocked on sim card module. Will need: MQTT broker (Mosquitto or EMQX), ingestion worker service, robot auto-provisioning with MQTT credentials, `mqtt_username`/`mqtt_password` columns on robots table
-- **WebSocket real-time push** — replace polling once ingestion pipeline can trigger push events
+- **TLS on MQTT (port 8883)** — add after plain MQTT is working end-to-end.
+  Requires: Mosquitto TLS config (`cafile`, `certfile`, `keyfile`), uploading root CA
+  cert to SIM7000A flash via `AT+CSSLCFG`, updating TinyGSM to use SSL client.
+  Docs when ready: https://mosquitto.org/man/mosquitto-tls-7.html
+- **WebSocket real-time push** — replace polling once ingestion pipeline is live
 - **Robot management UI** — separate ROS platform (confirm scope with Marcus)
 - **D3.js visualizations** — evaluate if Recharts is insufficient before adding a second charting library
 - **User roles / admin panel** — not needed until multi-organization support
