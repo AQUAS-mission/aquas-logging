@@ -712,7 +712,7 @@ Brings up the entire stack with one command: `docker compose up`
 ## Deferred (out of current scope)
 
 - **unify css variables etc into a css file**
-- **TLS on MQTT (port 8883)** — add after plain MQTT is working end-to-end.
+- **TLS on MQTT (port 8883)** — add after plain MQTT is working end-to-end
   Requires: Mosquitto TLS config (`cafile`, `certfile`, `keyfile`), uploading root CA
   cert to SIM7000A flash via `AT+CSSLCFG`, updating TinyGSM to use SSL client.
   Docs when ready: https://mosquitto.org/man/mosquitto-tls-7.html
