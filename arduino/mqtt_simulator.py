@@ -19,8 +19,8 @@ import paho.mqtt.client as mqtt
 
 # ==================== CONFIGURATION ====================
 
-MQTT_BROKER = "localhost"  # Update with your broker address
-MQTT_PORT = 1884  # Using 1884 to avoid conflict with system Mosquitto service
+MQTT_BROKER = "broker.hivemq.com"
+MQTT_PORT = 1883
 MQTT_USER = None  # Set if your broker requires auth
 MQTT_PASS = None
 

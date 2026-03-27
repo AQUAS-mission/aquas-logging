@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -7,10 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from db import get_pool, close_pool
+from mqtt_ingestion import start_mqtt_listener, stop_mqtt_listener
 from routes.view_routes import router as view_router
 from routes.auth_routes import router as auth_router
 from routes.robot_routes import router as robot_router
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 ALLOWED_ORIGINS = [
@@ -25,10 +28,11 @@ ALLOWED_ORIGINS = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # everything before yield runs on startup everything after runs on shutdown
-    await get_pool()
+    pool = await get_pool()
     logger.info("Database pool created")
+    start_mqtt_listener(pool, asyncio.get_event_loop())
     yield
+    stop_mqtt_listener()
     await close_pool()
     logger.info("Database pool closed")
 

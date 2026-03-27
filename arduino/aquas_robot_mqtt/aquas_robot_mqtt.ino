@@ -39,21 +39,21 @@
 #define SD_CS 5
 
 // Cellular Configuration
-const char apn[] = "your_apn";  // Replace with your carrier's APN
+const char apn[] = "hologram";  // Hologram SIM APN (update if using a different carrier)
 const char gprsUser[] = "";
 const char gprsPass[] = "";
 
 // MQTT Configuration
-const char mqtt_server[] = "your.mqtt.broker.com";  // Replace with your MQTT broker IP/domain
+const char mqtt_server[] = "broker.hivemq.com";
 const int mqtt_port = 1883;
-const char mqtt_user[] = "your_mqtt_user";  // Optional: if broker requires auth
-const char mqtt_pass[] = "your_mqtt_password";
+const char mqtt_user[] = "";  // HiveMQ public broker requires no auth
+const char mqtt_pass[] = "";
 
 // Robot Configuration
-const char robot_id[] = "robot_001";  // Unique identifier for this robot
-const char mqtt_topic[] = "aquas/robots/robot_001/data";
-const char mqtt_status_topic[] = "aquas/robots/robot_001/status";
-const char mqtt_command_topic[] = "aquas/robots/robot_001/commands";
+const char robot_id[] = "robot_sim_001";  // Must match serial_number in waterq.robots table
+const char mqtt_topic[] = "aquas/robots/robot_sim_001/data";
+const char mqtt_status_topic[] = "aquas/robots/robot_sim_001/status";
+const char mqtt_command_topic[] = "aquas/robots/robot_sim_001/commands";
 
 // Timing
 const unsigned long PUBLISH_INTERVAL = 60000;  // 1 minute

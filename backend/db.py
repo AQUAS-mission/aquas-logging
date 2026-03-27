@@ -2,6 +2,9 @@ import os
 from typing import Optional
 
 import asyncpg
+from dotenv import load_dotenv
+
+load_dotenv()
 
 DB_CONFIG = {
     "user": os.getenv("POSTGRES_USER", "postgres"),
