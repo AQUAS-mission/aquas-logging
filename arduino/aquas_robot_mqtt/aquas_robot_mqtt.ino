@@ -2,14 +2,17 @@
  * AQUAS Robot - Production MQTT Sensor System
  * 
  * Hardware:
- * - ESP32
- * - SIM7000A (Cellular connectivity)
+ * - Arduino Uno
+ * - SIM7000A (Cellular connectivity via SoftwareSerial)
  * - Environmental sensors (pH, Temperature, DO, EC, Turbidity)
  * - GPS module
  * - SD Card (for offline data storage)
  * 
  * Architecture:
- * Robot Sensors -> ESP32 -> SIM7000A -> MQTT Broker -> FastAPI Backend -> Dashboard
+ * Robot Sensors -> Arduino Uno -> SIM7000A -> MQTT Broker -> FastAPI Backend -> Dashboard
+ *
+ * NOTE: Arduino Uno has only 2KB SRAM and one HardwareSerial (used for USB/debug).
+ * The SIM7000A modem is driven via SoftwareSerial on pins 7 (RX) and 8 (TX).
  */
 
 // Define modem type BEFORE including TinyGSM
@@ -19,24 +22,25 @@
 // Uncomment for debugging
 // #define TINY_GSM_DEBUG Serial
 
+#include <SoftwareSerial.h>
 #include <TinyGsmClient.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include <SPI.h>
 #include <SD.h>
-#include <FS.h>
 #include <TimeLib.h>
 
 // ==================== CONFIGURATION ====================
 
-// Hardware Serial Pins
-#define MODEM_RX 16
-#define MODEM_TX 17
-#define MODEM_PWRKEY 4
-#define MODEM_POWER_ON 23
+// SoftwareSerial pins for SIM7000A (Arduino Uno)
+// Avoid pins 0/1 (used by USB/HardwareSerial for debug output)
+#define MODEM_RX 7
+#define MODEM_TX 8
+#define MODEM_PWRKEY 5
+#define MODEM_POWER_ON 6
 
-// SD Card
-#define SD_CS 5
+// SD Card (pin 10 is the default SPI SS on Arduino Uno)
+#define SD_CS 10
 
 // Cellular Configuration
 const char apn[] = "hologram";  // Hologram SIM APN (update if using a different carrier)
@@ -66,7 +70,7 @@ const char offline_file[] = "/offline_data.txt";
 
 // ==================== GLOBAL OBJECTS ====================
 
-HardwareSerial SerialAT(1);
+SoftwareSerial SerialAT(MODEM_RX, MODEM_TX);  // RX=7, TX=8 on Arduino Uno
 TinyGsm modem(SerialAT);
 TinyGsmClient client(modem);
 PubSubClient mqtt(client);
@@ -205,7 +209,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 void handleCommand(String command) {
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<128> doc;  // Reduced for Uno's 2KB SRAM
   DeserializationError error = deserializeJson(doc, command);
   
   if (error) {
@@ -251,7 +255,7 @@ bool connectMQTT() {
 }
 
 void publishSensorData() {
-  StaticJsonDocument<512> doc;
+  StaticJsonDocument<256> doc;  // Reduced for Uno's 2KB SRAM
   
   doc["robot_id"] = robot_id;
   doc["timestamp"] = currentData.timestamp;
@@ -266,7 +270,7 @@ void publishSensorData() {
     doc["longitude"] = currentData.longitude;
   }
   
-  char buffer[512];
+  char buffer[256];  // Reduced for Uno's 2KB SRAM
   size_t len = serializeJson(doc, buffer);
   
   if (mqttReady && mqtt.connected()) {
@@ -283,7 +287,7 @@ void publishSensorData() {
 }
 
 void publishStatus() {
-  StaticJsonDocument<256> doc;
+  StaticJsonDocument<128> doc;  // Reduced for Uno's 2KB SRAM
   
   doc["robot_id"] = robot_id;
   doc["timestamp"] = now();
@@ -293,12 +297,12 @@ void publishStatus() {
   doc["signal_quality"] = modem.getSignalQuality();
   doc["offline_records"] = offlineRecordCount;
   
-  char buffer[256];
+  char buffer[128];  // Reduced for Uno's 2KB SRAM
   serializeJson(doc, buffer);
   
   if (mqttReady && mqtt.connected()) {
     mqtt.publish(mqtt_status_topic, buffer);
-    Serial.println("✓ Status published");
+    Serial.println("OK Status published");
   }
 }
 
@@ -326,7 +330,8 @@ void saveToSDCard(const char* data) {
     return;
   }
   
-  File file = SD.open(offline_file, FILE_APPEND);
+  // FILE_WRITE on Arduino SD library appends if the file already exists
+  File file = SD.open(offline_file, FILE_WRITE);
   if (!file) {
     Serial.println("✗ Failed to open offline file");
     return;
@@ -450,9 +455,20 @@ void purgeOldOfflineData() {
   readFile.close();
   writeFile.close();
   
-  // Replace old file with new
+  // SD.rename() is not available in the standard Arduino SD library.
+  // Remove the old file and re-read the temp file as the new offline store.
   SD.remove(offline_file);
-  SD.rename("/temp.txt", offline_file);
+  // Copy /temp.txt -> offline_file
+  File src = SD.open("/temp.txt", FILE_READ);
+  File dst = SD.open(offline_file, FILE_WRITE);
+  if (src && dst) {
+    while (src.available()) {
+      dst.write(src.read());
+    }
+  }
+  if (src) src.close();
+  if (dst) dst.close();
+  SD.remove("/temp.txt");
   
   offlineRecordCount = currentLine - skipCount;
   Serial.print("Purged old data, ");
@@ -477,8 +493,8 @@ void initModem() {
   delay(1000);
   digitalWrite(MODEM_PWRKEY, HIGH);
   
-  // Start serial communication
-  SerialAT.begin(9600, SERIAL_8N1, MODEM_RX, MODEM_TX);
+  // Start SoftwareSerial communication (Arduino Uno: no pin args needed here)
+  SerialAT.begin(9600);
   delay(3000);
   
   Serial.println("Waiting for modem to respond...");
