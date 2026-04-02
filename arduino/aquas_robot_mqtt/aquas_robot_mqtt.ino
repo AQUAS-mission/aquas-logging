@@ -88,6 +88,23 @@ bool mqttReady = false;
 
 // ==================== SENSOR READING ====================
 
+void printSensorData() {
+  char tmp[12];
+  Serial.println(F("--- Sensor Readings ---"));
+  Serial.print(F("pH: ")); dtostrf(currentData.ph, 1, 2, tmp); Serial.println(tmp);
+  Serial.print(F("Temp: ")); dtostrf(currentData.temperature, 1, 2, tmp); Serial.print(tmp); Serial.println(F(" C"));
+  Serial.print(F("DO: ")); dtostrf(currentData.dissolved_oxygen, 1, 2, tmp); Serial.print(tmp); Serial.println(F(" mg/L"));
+  Serial.print(F("EC: ")); dtostrf(currentData.electrical_conductivity, 1, 1, tmp); Serial.print(tmp); Serial.println(F(" uS/cm"));
+  Serial.print(F("Turb: ")); dtostrf(currentData.turbidity, 1, 2, tmp); Serial.print(tmp); Serial.println(F(" NTU"));
+  if (currentData.gps_valid) {
+    Serial.print(F("GPS: ")); dtostrf(currentData.latitude, 1, 6, tmp); Serial.print(tmp);
+    Serial.print(F(", ")); dtostrf(currentData.longitude, 1, 6, tmp); Serial.println(tmp);
+  } else {
+    Serial.println(F("GPS: N/A"));
+  }
+  Serial.println(F("-----------------------"));
+}
+
 void readSensors() {
   // TODO: Replace with actual sensor readings
   currentData.ph = 7.2 + (random(-10, 10) / 100.0);
@@ -101,7 +118,8 @@ void readSensors() {
   currentData.longitude = -74.0060 + (random(-100, 100) / 10000.0);
   currentData.gps_valid = true;
 
-  Serial.println(F("Sensors read"));
+  Serial.println(F("Sensors read OK"));
+  printSensorData();
 }
 
 // ==================== JSON HELPERS ====================
