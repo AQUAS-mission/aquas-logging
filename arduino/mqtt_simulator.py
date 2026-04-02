@@ -19,8 +19,8 @@ import paho.mqtt.client as mqtt
 
 # ==================== CONFIGURATION ====================
 
-MQTT_BROKER = "broker.hivemq.com"
-MQTT_PORT = 1883
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1884
 MQTT_USER = None  # Set if your broker requires auth
 MQTT_PASS = None
 

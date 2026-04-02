@@ -10,7 +10,7 @@
  */
 
 // *** UNCOMMENT TO ENABLE MODEM + MQTT (may exceed Uno flash) ***
-// #define ENABLE_MODEM
+#define ENABLE_MODEM
 
 #ifdef ENABLE_MODEM
   #define TINY_GSM_MODEM_SIM7000
@@ -125,16 +125,16 @@ int buildSensorJson(char* buf, int bufSize) {
   pos += snprintf(buf + pos, bufSize - pos, "\"ph\":%s,", tmp);
 
   dtostrf(currentData.temperature, 1, 2, tmp);
-  pos += snprintf(buf + pos, bufSize - pos, "\"temp\":%s,", tmp);
+  pos += snprintf(buf + pos, bufSize - pos, "\"temperature\":%s,", tmp);
 
   dtostrf(currentData.dissolved_oxygen, 1, 2, tmp);
-  pos += snprintf(buf + pos, bufSize - pos, "\"do\":%s,", tmp);
+  pos += snprintf(buf + pos, bufSize - pos, "\"dissolved_oxygen\":%s,", tmp);
 
   dtostrf(currentData.electrical_conductivity, 1, 1, tmp);
-  pos += snprintf(buf + pos, bufSize - pos, "\"ec\":%s,", tmp);
+  pos += snprintf(buf + pos, bufSize - pos, "\"electrical_conductivity\":%s,", tmp);
 
   dtostrf(currentData.turbidity, 1, 2, tmp);
-  pos += snprintf(buf + pos, bufSize - pos, "\"turb\":%s", tmp);
+  pos += snprintf(buf + pos, bufSize - pos, "\"turbidity\":%s", tmp);
 
   if (currentData.gps_valid) {
     dtostrf(currentData.latitude, 1, 6, tmp);
@@ -231,13 +231,16 @@ void initModem() {
   SerialAT.begin(9600);
   delay(3000);
 
-  Serial.println(F("Modem restarting..."));
-  if (!modem.restart()) {
-    Serial.println(F("Modem restart FAILED"));
+  // Use init() instead of restart() — restart() does a full chip reset
+  // which often times out on Uno's slower SoftwareSerial.
+  // init() just confirms AT communication is working.
+  Serial.println(F("Modem init (AT check)..."));
+  if (!modem.init()) {
+    Serial.println(F("Modem init FAILED - check LiPo battery on BAT pin and RX/TX wiring"));
     modemReady = false;
     return;
   }
-  Serial.println(F("Modem restart OK"));
+  Serial.println(F("Modem init OK"));
 
   Serial.println(F("Waiting for network..."));
   if (!modem.waitForNetwork(60000L)) {
