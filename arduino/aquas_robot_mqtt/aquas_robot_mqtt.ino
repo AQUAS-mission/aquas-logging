@@ -310,12 +310,23 @@ void initModem() {
 // ==================== SETUP ====================
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
+  Serial.begin(9600);
+  while (!Serial) { ; }  // wait for Serial Monitor to open
+  delay(2000);
 
-  Serial.println(F("\nAQUAS Robot Starting"));
+  Serial.println(F("=== AQUAS Robot Booting ==="));
+  Serial.println(F("Serial OK"));
 
+  // Skip modem init for testing without hardware
+  // Uncomment the next line to test sensors/serial without SIM7000A:
+  // #define SKIP_MODEM
+
+#ifdef SKIP_MODEM
+  Serial.println(F("MODEM SKIPPED (test mode)"));
+  modemReady = false;
+#else
   initModem();
+#endif
 
   if (!modemReady) {
     Serial.println(F("Offline mode"));
