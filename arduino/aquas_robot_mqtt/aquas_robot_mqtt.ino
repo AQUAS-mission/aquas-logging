@@ -197,17 +197,22 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
 }
 
 bool connectMQTT() {
-  Serial.println(F("MQTT connecting..."));
+  Serial.print(F("MQTT connecting to "));
+  Serial.print(mqtt_server);
+  Serial.print(F(":"));
+  Serial.println(mqtt_port);
 
   if (mqtt_client.connect(robot_id, mqtt_user, mqtt_pass)) {
-    Serial.println(F("MQTT OK"));
+    Serial.println(F("MQTT connected OK"));
     mqtt_client.subscribe(mqtt_command_topic);
+    Serial.print(F("Subscribed: "));
+    Serial.println(mqtt_command_topic);
     publishStatus();
     mqttReady = true;
     return true;
   }
 
-  Serial.print(F("MQTT fail rc="));
+  Serial.print(F("MQTT FAILED rc="));
   Serial.println(mqtt_client.state());
   mqttReady = false;
   return false;
@@ -217,14 +222,20 @@ void publishSensorData() {
   char buffer[220];
   int len = buildSensorJson(buffer, sizeof(buffer));
 
+  Serial.print(F("Publishing to: "));
+  Serial.println(mqtt_topic);
+  Serial.print(F("Payload: "));
+  Serial.println(buffer);
+
   if (mqttReady && mqtt_client.connected()) {
     if (mqtt_client.publish(mqtt_topic, buffer, len)) {
-      Serial.println(F("Published"));
+      Serial.println(F("Publish OK"));
       return;
     }
+    Serial.println(F("Publish FAILED"));
+  } else {
+    Serial.println(F("Not connected, skipping publish"));
   }
-
-  Serial.println(F("Publish fail"));
   // Without SD card, data is lost. Consider adding EEPROM buffering
   // or upgrading to a board with more flash to re-enable SD storage.
 }
@@ -233,8 +244,14 @@ void publishStatus() {
   char buffer[100];
   buildStatusJson(buffer, sizeof(buffer));
 
+  Serial.print(F("Status: "));
+  Serial.println(buffer);
+
   if (mqttReady && mqtt_client.connected()) {
     mqtt_client.publish(mqtt_status_topic, buffer);
+    Serial.println(F("Status published"));
+  } else {
+    Serial.println(F("Status not sent (offline)"));
   }
 }
 
@@ -256,13 +273,15 @@ void initModem() {
   SerialAT.begin(9600);
   delay(3000);
 
+  Serial.println(F("Modem restarting..."));
   if (!modem.restart()) {
-    Serial.println(F("Modem fail"));
+    Serial.println(F("Modem restart FAILED"));
     modemReady = false;
     return;
   }
+  Serial.println(F("Modem restart OK"));
 
-  Serial.println(F("Wait network..."));
+  Serial.println(F("Waiting for network..."));
   if (!modem.waitForNetwork(60000L)) {
     Serial.println(F("Network fail"));
     modemReady = false;
@@ -270,8 +289,14 @@ void initModem() {
   }
   Serial.println(F("Network OK"));
 
+  int sig = modem.getSignalQuality();
+  Serial.print(F("Signal: "));
+  Serial.println(sig);
+
   char apnBuf[16];
   strncpy_P(apnBuf, apn, sizeof(apnBuf));
+  Serial.print(F("Connecting APN: "));
+  Serial.println(apnBuf);
   if (!modem.gprsConnect(apnBuf, gprsUser, gprsPass)) {
     Serial.println(F("GPRS fail"));
     modemReady = false;
@@ -313,9 +338,11 @@ void loop() {
   // Maintain MQTT connection
   if (modemReady && mqttReady) {
     if (!mqtt_client.connected()) {
+      Serial.println(F("MQTT disconnected"));
       mqttReady = false;
       if (currentMillis - lastReconnectAttempt > RECONNECT_INTERVAL) {
         lastReconnectAttempt = currentMillis;
+        Serial.println(F("Reconnecting MQTT..."));
         connectMQTT();
       }
     } else {
