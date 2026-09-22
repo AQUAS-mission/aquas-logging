@@ -1,5 +1,23 @@
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { SignJWT } from "jose";
+
+// The API verifies HS256 tokens signed with NEXTAUTH_SECRET (see backend/auth.py),
+// so the secret must be identical on both sides.
+async function signApiToken(payload: {
+  sub: string;
+  name?: string | null;
+  role?: string;
+}): Promise<string | undefined> {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (!secret) return undefined;
+  return new SignJWT({ name: payload.name ?? null, role: payload.role })
+    .setProtectedHeader({ alg: "HS256" })
+    .setSubject(payload.sub)
+    .setIssuedAt()
+    .setExpirationTime("8h")
+    .sign(new TextEncoder().encode(secret));
+}
 
 const handler = NextAuth({
   providers: [
@@ -45,7 +63,12 @@ const handler = NextAuth({
     async session({ session, token }) {
       session.user.role = token.role;
       session.user.id = token.id;
-      session.user.accessToken = JSON.stringify(token); // for backend auth if needed
+      // Signed on each session read so the 8h expiry stays fresh.
+      session.user.accessToken = await signApiToken({
+        sub: String(token.id ?? token.sub ?? "unknown"),
+        name: token.name,
+        role: token.role,
+      });
       return session;
     },
   },

@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSession } from "next-auth/react"
 
 import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react"
 
@@ -60,6 +61,8 @@ const percentChange = (current: number | null | undefined, prev: number | null |
 }
 
 export function SectionCards() {
+  const { data: session } = useSession()
+  const token = session?.user?.accessToken
   const [averages, setAverages] = React.useState<Record<
     MetricKey,
     { current: number | null; previous: number | null }
@@ -68,6 +71,7 @@ export function SectionCards() {
   const [error, setError] = React.useState<string | null>(null)
 
   React.useEffect(() => {
+    if (!token) return
     const controller = new AbortController()
     const fetchData = async () => {
       setLoading(true)
@@ -75,7 +79,10 @@ export function SectionCards() {
       try {
         const response = await fetch(`${API_BASE}/views/query`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ view: "all", params: { limit: 10000 } }),
           signal: controller.signal,
         })
@@ -116,7 +123,7 @@ export function SectionCards() {
           if (!Number.isFinite(ts)) return
           const isCurrent = ts >= currentStart
           const isPrev = ts >= previousStart && ts < currentStart
-          const toNumber = (v: unknown) => (typeof v === "number" ? v : Number(v))
+          const toNumber = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
           (Object.keys(buckets) as MetricKey[]).forEach((key) => {
             const val = toNumber(row[key])
@@ -154,7 +161,7 @@ export function SectionCards() {
 
     fetchData()
     return () => controller.abort()
-  }, [])
+  }, [token])
 
   const renderBadge = (current: number | null, prev: number | null) => {
     const change = percentChange(current, prev)
