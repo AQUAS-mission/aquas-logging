@@ -1,24 +1,41 @@
-## Getting Started
+# aquas-logging / frontend
 
-First, run the development server:
+Next.js 15 (App Router) dashboard for AQUAS telemetry, built on shadcn/ui,
+Recharts, and TanStack Table, with NextAuth for session auth.
+
+**Setup and environment variables are documented in the [root README](../README.md).**
+The short version:
 
 ```bash
+cp .env.example .env.local     # then edit the credentials
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The backend must be running too, or every panel will show a fetch error. See
+the root README's [Running it locally](../README.md#running-it-locally).
 
-To pull live data from the FastAPI backend, set `NEXT_PUBLIC_API_BASE` in `frontend/.env` (defaults to `http://localhost:8000`) and ensure the backend is running. Selecting a view in the table triggers a POST to `/views/query` with the view ID.
+## Layout
 
-## Dummy Data
+| Path | What's there |
+| --- | --- |
+| `app/page.tsx` | The dashboard. Redirects to `/login` without a session. |
+| `app/login/page.tsx` | Sign-in form (inline, not `components/login-form.tsx`). |
+| `app/api/auth/[...nextauth]/route.ts` | NextAuth credentials provider. |
+| `components/section-cards.tsx` | 30-day averages per metric, vs. the previous 30 days. |
+| `components/chart-area-interactive.tsx` | Metric trend chart with metric and time-range selectors. |
+| `components/sensor-table.tsx` | Sortable, filterable table with CSV/JSON download. |
+| `components/app-sidebar.tsx` | Sidebar. Only real destinations; add to `navMain` as routes land. |
+| `components/ui/` | shadcn/ui primitives. Generated — avoid hand-editing. |
 
-To generate some dummy data for the main table, run `npm run datagen`
+All three data components fetch `POST {NEXT_PUBLIC_API_BASE}/views/query`
+independently on mount; there is no shared data layer or cache.
 
+## Scripts
 
-// make it so the filters have hard caps on them like ph between 0 - 14 or turbidity 0 --> anything etc.
+| Command | Does |
+| --- | --- |
+| `npm run dev` | Dev server with Turbopack on :3000 |
+| `npm run build` | Production build |
+| `npm start` | Serve a production build |
+| `npm run datagen` | Writes `mocks/sensor-data.json`. Not read by the app. |

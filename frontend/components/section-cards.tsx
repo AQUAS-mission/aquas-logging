@@ -116,7 +116,7 @@ export function SectionCards() {
           if (!Number.isFinite(ts)) return
           const isCurrent = ts >= currentStart
           const isPrev = ts >= previousStart && ts < currentStart
-          const toNumber = (v: unknown) => (typeof v === "number" ? v : Number(v))
+          const toNumber = (v: unknown) => (typeof v === "number" ? v : Number(v));
 
           (Object.keys(buckets) as MetricKey[]).forEach((key) => {
             const val = toNumber(row[key])

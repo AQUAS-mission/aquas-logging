@@ -91,7 +91,7 @@ VIEW_QUERIES: Dict[str, Dict[str, Any]] = {
         "sql": """
             SELECT EXTRACT(EPOCH FROM time)::bigint AS timestamp, ph
             FROM waterq.measurements
-            WHERE time >= NOW() AT TIME ZONE 'utc' - ($1 || ' days')::interval
+            WHERE time >= NOW() AT TIME ZONE 'utc' - make_interval(days => $1::int)
             ORDER BY time DESC
         """,
         "params": {"days": 7},

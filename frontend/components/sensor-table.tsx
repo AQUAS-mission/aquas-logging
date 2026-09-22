@@ -45,6 +45,7 @@ import {
   type OnChangeFn,
   Row,
   SortingState,
+  type Table as TanStackTable,
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
@@ -388,7 +389,7 @@ function SortableHeader({
   title,
 }: {
   column: Column<SensorRow, unknown>
-  table: Table<SensorRow>
+  table: TanStackTable<SensorRow>
   title: string
 }) {
   const sorted = column.getIsSorted()
@@ -1061,9 +1062,7 @@ export function SensorTable({
               </Button>
             </>
           ) : null}
-          {selectedFilterColumn &&
-          selectedFilterColumn !== "" &&
-          selectedFilterColumn !== "timestamp" ? (
+          {selectedFilterColumn && selectedFilterColumn !== "timestamp" ? (
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="number"
@@ -1278,7 +1277,7 @@ export function SensorTable({
 
 function TableCellViewer({ item }: { item: SensorRow }) {
   const isMobile = useIsMobile()
-  const entries = React.useMemo(
+  const entries = React.useMemo<Array<[string, string | number]>>(
     () => [
       ["timestamp", formatTimestamp(item.timestamp)],
       ["longitude", formatNumber(item.longitude)],

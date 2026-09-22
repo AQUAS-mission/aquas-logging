@@ -145,11 +145,11 @@ export function ChartAreaInteractive() {
     const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000
     return data
       .filter((item) => item.timestamp * 1000 >= cutoffMs)
+      .sort((a, b) => a.timestamp - b.timestamp)
       .map((item) => ({
         date: formatDate(item.timestamp),
         value: item[metric],
       }))
-      .sort((a, b) => (a.date > b.date ? 1 : -1))
   }, [data, metric, timeRange])
 
   return (
