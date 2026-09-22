@@ -29,7 +29,10 @@ the root README's [Running it locally](../README.md#running-it-locally).
 | `components/ui/` | shadcn/ui primitives. Generated — avoid hand-editing. |
 
 All three data components fetch `POST {NEXT_PUBLIC_API_BASE}/views/query`
-independently on mount; there is no shared data layer or cache.
+independently on mount; there is no shared data layer or cache. Each reads
+`session.user.accessToken` via `useSession()` and sends it as
+`Authorization: Bearer`, and each waits for that token before firing, so the
+panels stay empty until the session resolves.
 
 ## Scripts
 

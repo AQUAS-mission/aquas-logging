@@ -64,7 +64,7 @@ out at the bottom.
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env          # then edit
+cp .env.example .env          # then edit, and set NEXTAUTH_SECRET
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -82,6 +82,11 @@ npm run dev
 Open http://localhost:3000. You will be redirected to `/login`; sign in with the
 `ADMIN_USERNAME` / `ADMIN_PASSWORD` you set in `.env.local`.
 
+> **`NEXTAUTH_SECRET` must be identical in `backend/.env` and
+> `frontend/.env.local`.** The dashboard signs its API token with it and the
+> backend verifies with it. If they differ, login succeeds but every panel
+> fails with a 401.
+
 ## Environment variables
 
 ### Backend
@@ -96,7 +101,7 @@ Read at startup by `backend/main.py`. Template: `backend/.env.example`.
 | `POSTGRES_HOST` | `localhost` | Database host |
 | `POSTGRES_PORT` | `5432` | Database port |
 | `FRONTEND_ORIGINS` | `http://localhost:3000,http://127.0.0.1:3000` | Comma-separated CORS allowlist |
-| `NEXTAUTH_SECRET` | `aquas_test_secret` | JWT key in `backend/auth.py`, which is not wired to any endpoint yet — see [Known gaps](#known-gaps). |
+| `NEXTAUTH_SECRET` | `aquas_test_secret` | HS256 key used to verify API bearer tokens. Must match the frontend. |
 
 ### Frontend
 
@@ -105,16 +110,35 @@ Template: `frontend/.env.example`. Goes in `frontend/.env.local`.
 | Variable | Purpose |
 | --- | --- |
 | `NEXTAUTH_URL` | Base URL NextAuth issues callbacks against (`http://localhost:3000` in dev) |
-| `NEXTAUTH_SECRET` | Signs the session JWT. |
+| `NEXTAUTH_SECRET` | Signs the session **and** the API bearer token. Must match the backend. |
 | `ADMIN_USERNAME` | The only accepted username |
 | `ADMIN_PASSWORD` | The only accepted password |
 | `NEXT_PUBLIC_API_BASE` | Backend base URL. Defaults to `http://localhost:8000`. |
 
 ## API
 
+### Authentication
+
+Every endpoint except `/health` requires a bearer token:
+
+```
+Authorization: Bearer <HS256 JWT signed with NEXTAUTH_SECRET>
+```
+
+On login, the NextAuth `session` callback signs a short-lived (8h) HS256 token
+and puts it on `session.user.accessToken`; the three data components attach it
+to their requests. The backend verifies it in `backend/auth.py`. A missing,
+malformed, expired, or wrongly-signed token gets a 401.
+
+To call the API by hand, mint one with the same secret:
+
+```bash
+TOKEN=$(python -c "import jwt,datetime;print(jwt.encode({'sub':'1','exp':datetime.datetime.now(datetime.UTC)+datetime.timedelta(hours=1)},'<NEXTAUTH_SECRET>',algorithm='HS256'))")
+```
+
 ### `GET /health`
 
-Liveness check. Returns `{"status": "ok"}`.
+Liveness check. Returns `{"status": "ok"}`. Not authenticated.
 
 ### `POST /views/query`
 
@@ -130,6 +154,7 @@ a request with junk params still returns the default result set.
 ```bash
 curl -X POST http://localhost:8000/views/query \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
   -d '{"view":"all","params":{"limit":50}}'
 ```
 
@@ -195,14 +220,10 @@ window won't appear. Seed with `--weeks` covering the range you want to see.
 
 Things that look wired up but aren't, so nobody has to rediscover them:
 
-- **The API has no authentication.** `backend/auth.py` defines
-  `get_current_user`, but nothing imports it — no endpoint declares it as a
-  dependency. Anyone who can reach port 8000 can read every measurement. The
-  dashboard's login only gates the UI.
 - **Login is a single hardcoded account.** The NextAuth credentials provider
   string-compares against `ADMIN_USERNAME` / `ADMIN_PASSWORD`. There is no user
-  table, no password hashing, and no signup path. Real accounts need a user
-  store first.
+  table, no password hashing, and no per-user identity — the API token's `sub`
+  is always the same. Real accounts need a user store first.
 - **`frontend/components/signup-form.tsx` and `login-form.tsx` are unused.**
   `app/login/page.tsx` has its own inline form. They look like the start of the
   accounts feature above, so they were kept rather than deleted.

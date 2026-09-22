@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSession } from "next-auth/react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -69,6 +70,8 @@ const formatDate = (ts: number) => new Date(ts * 1000).toLocaleDateString()
 
 export function ChartAreaInteractive() {
   const isMobile = useIsMobile()
+  const { data: session } = useSession()
+  const token = session?.user?.accessToken
   const [timeRange, setTimeRange] = React.useState("90")
   const [metric, setMetric] = React.useState<MetricKey>("ph")
   const [data, setData] = React.useState<SensorRow[]>([])
@@ -82,6 +85,7 @@ export function ChartAreaInteractive() {
   }, [isMobile])
 
   React.useEffect(() => {
+    if (!token) return
     const controller = new AbortController()
     const fetchData = async () => {
       setLoading(true)
@@ -89,7 +93,10 @@ export function ChartAreaInteractive() {
       try {
         const response = await fetch(`${API_BASE}/views/query`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({ view: "all", params: { limit: 5000 } }),
           signal: controller.signal,
         })
@@ -138,7 +145,7 @@ export function ChartAreaInteractive() {
     }
     fetchData()
     return () => controller.abort()
-  }, [])
+  }, [token])
 
   const filteredData = React.useMemo(() => {
     const days = Number(timeRange) || 90
