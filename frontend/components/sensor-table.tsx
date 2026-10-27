@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { useSession } from "next-auth/react"
 import {
   closestCenter,
   DndContext,
@@ -45,6 +46,7 @@ import {
   type OnChangeFn,
   Row,
   SortingState,
+  type Table as TanStackTable,
   useReactTable,
   VisibilityState,
 } from "@tanstack/react-table"
@@ -388,7 +390,7 @@ function SortableHeader({
   title,
 }: {
   column: Column<SensorRow, unknown>
-  table: Table<SensorRow>
+  table: TanStackTable<SensorRow>
   title: string
 }) {
   const sorted = column.getIsSorted()
@@ -457,6 +459,8 @@ export function SensorTable({
 }: {
   data: SensorRow[]
 }) {
+  const { data: session } = useSession()
+  const token = session?.user?.accessToken
   const [data, setData] = React.useState(() => initialData)
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(() =>
@@ -828,6 +832,7 @@ export function SensorTable({
     if (activeView === CUSTOM_VIEW_ID) {
       return
     }
+    if (!token) return
 
     const controller = new AbortController()
     const fetchData = async () => {
@@ -853,6 +858,7 @@ export function SensorTable({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
           signal: controller.signal,
@@ -886,7 +892,7 @@ export function SensorTable({
     return () => {
       controller.abort()
     }
-  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit])
+  }, [activeView, normalizeBackendRow, timeWindow, viewToBackendId, recordLimit, token])
 
   const table = useReactTable({
     data,
@@ -1061,9 +1067,7 @@ export function SensorTable({
               </Button>
             </>
           ) : null}
-          {selectedFilterColumn &&
-          selectedFilterColumn !== "" &&
-          selectedFilterColumn !== "timestamp" ? (
+          {selectedFilterColumn && selectedFilterColumn !== "timestamp" ? (
             <div className="flex flex-wrap items-center gap-2">
               <Input
                 type="number"
@@ -1278,7 +1282,7 @@ export function SensorTable({
 
 function TableCellViewer({ item }: { item: SensorRow }) {
   const isMobile = useIsMobile()
-  const entries = React.useMemo(
+  const entries = React.useMemo<Array<[string, string | number]>>(
     () => [
       ["timestamp", formatTimestamp(item.timestamp)],
       ["longitude", formatNumber(item.longitude)],

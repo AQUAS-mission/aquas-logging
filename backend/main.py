@@ -3,9 +3,11 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import asyncpg
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
+
+from auth import get_current_user
 
 app = FastAPI(title="Water Quality API")
 logger = logging.getLogger(__name__)
@@ -91,7 +93,7 @@ VIEW_QUERIES: Dict[str, Dict[str, Any]] = {
         "sql": """
             SELECT EXTRACT(EPOCH FROM time)::bigint AS timestamp, ph
             FROM waterq.measurements
-            WHERE time >= NOW() AT TIME ZONE 'utc' - ($1 || ' days')::interval
+            WHERE time >= NOW() AT TIME ZONE 'utc' - make_interval(days => $1::int)
             ORDER BY time DESC
         """,
         "params": {"days": 7},
@@ -182,7 +184,10 @@ async def health() -> Dict[str, str]:
 
 
 @app.post("/views/query")
-async def run_view_query(payload: ViewRequest) -> Dict[str, Any]:
+async def run_view_query(
+    payload: ViewRequest,
+    _user: Dict = Depends(get_current_user),
+) -> Dict[str, Any]:
     db_pool = await get_pool()
     view_config = VIEW_QUERIES.get(payload.view)
     if not view_config:

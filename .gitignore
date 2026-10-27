@@ -1,1 +1,11 @@
 node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local environment files (see backend/.env.example, frontend/.env.example)
+.env
+.env.local
